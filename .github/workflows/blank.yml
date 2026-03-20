@@ -72,7 +72,7 @@ jobs:
           { Filter = { Bundles = ( "com.tencent.ig" ); }; }
           EOF
 
-          # كود الـ Tweak.xm مالتك بدون أي نقص
+          # كود الـ Tweak.xm مع تعديل الوقت لـ 40 ثانية
           cat << 'EOF' > Tweak.xm
           #import <Foundation/Foundation.h>
           #import <mach-o/dyld.h>
@@ -128,7 +128,8 @@ jobs:
           }
 
           __attribute__((constructor)) static void setup_all_bypass() {
-              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 20 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+              // تم تعديل الوقت هنا إلى 40 ثانية
+              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 40 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
                   
                   apply_memory_patch(0x68F2720); 
                   apply_memory_patch(0x68F0BC0); 
@@ -139,7 +140,7 @@ jobs:
                   };
                   rebind_symbols(rebindings, 1);
                   
-                  NSLog(@"[+] Masoud Ultimate Bypass Injected Successfully!");
+                  NSLog(@"[+] Masoud Ultimate Bypass Injected Successfully after 40s!");
               });
           }
           EOF
@@ -154,3 +155,4 @@ jobs:
         with:
           name: Masoud-Ultimate-Dylib
           path: bypass_project/.theos/obj/*.dylib
+          
