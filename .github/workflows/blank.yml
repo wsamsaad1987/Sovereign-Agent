@@ -1,4 +1,4 @@
-name: Masoud Ultimate Mod Menu
+name: Masoud Stealth Floating Menu
 
 on:
   push:
@@ -16,25 +16,22 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Theos & SDKs
+      - name: Setup Theos
         run: |
           brew install ldid
           git clone --recursive https://github.com/theos/theos.git $THEOS
-          rm -rf $THEOS/sdks
           git clone --depth 1 https://github.com/theos/sdks.git $THEOS/sdks
           echo "THEOS=$THEOS" >> $GITHUB_ENV
           echo "$THEOS/bin" >> $GITHUB_PATH
 
-      - name: Create Project Structure
+      - name: Create Project
         run: |
           mkdir -p bypass_project
           cd bypass_project
           
-          # تحميل مكتبة fishhook للهوكين
           curl -sO https://raw.githubusercontent.com/facebook/fishhook/main/fishhook.h
           curl -sO https://raw.githubusercontent.com/facebook/fishhook/main/fishhook.c
           
-          # إنشاء Makefile
           cat << 'EOF' > Makefile
           ARCHS = arm64
           TARGET = iphone:clang:latest:14.0
@@ -43,110 +40,115 @@ jobs:
           TWEAK_NAME = ShadowBypass
           ShadowBypass_FILES = Tweak.xm fishhook.c
           ShadowBypass_CFLAGS = -fobjc-arc
+          ShadowBypass_FRAMEWORKS = UIKit CoreGraphics
           include $(THEOS_MAKE_PATH)/tweak.mk
           EOF
           
-          # إنشاء Plist
           cat << 'EOF' > ShadowBypass.plist
           { Filter = { Bundles = ( "com.tencent.ig" ); }; }
           EOF
 
-          # كود الـ Tweak.xm مع المنيو المتطور
           cat << 'EOF' > Tweak.xm
           #import <Foundation/Foundation.h>
           #import <mach-o/dyld.h>
           #import <sys/mman.h>
           #import <dlfcn.h>
           #import <UIKit/UIKit.h>
+          #import <mach/mach.h>
           #import "fishhook.h"
 
-          // --- نظام التشفير XOR للأوفستات ---
+          // --- نظام التشفير ---
           #define KEY 0xDEADC0DE12345678ULL
           uintptr_t d(uint64_t v) { return (uintptr_t)(v ^ KEY); }
+          #define E1 0xDEADC0DE14BBAB58ULL
+          #define E2 0xDEADC0DE14BB89B8ULL
+          #define E3 0xDEADC0DE14BBA9C8ULL
 
-          // الأوفستات المشفرة
-          #define E1 0xDEADC0DE14BBAB58ULL // Bypass 1
-          #define E2 0xDEADC0DE14BB89B8ULL // Bypass 2
-          #define E3 0xDEADC0DE14BBA9C8ULL // Bypass 3
-          #define E_FPS 0xDEADC0DE14BAF123ULL // أوفست الـ FPS (كمثال)
+          static BOOL s1=NO, s2=NO, s3=NO;
+          static UIButton *floatingButton;
 
-          // --- حالات الأزرار ---
-          static BOOL s1=NO, s2=NO, s3=NO, sFPS=NO, sLogs=NO;
+          // ==========================================
+          // 💉 [جديد] تخدير دالة vm_region_recurse_64
+          // وظيفتها: منع الحماية من اكتشاف الـ NOPs بالذاكرة
+          // ==========================================
+          static kern_return_t (*orig_vm_region)(vm_map_t, vm_address_t *, vm_size_t *, int, vm_region_info_t, mach_msg_type_number_t *, mach_port_t *);
 
-          // دالة الباتش الآمنة
-          void apply_patch(uint64_t enc_off) {
+          kern_return_t fake_vm_region(vm_map_t target_task, vm_address_t *address, vm_size_t *size, int flavor, vm_region_info_t info, mach_msg_type_number_t *infoCnt, mach_port_t *objectName) {
+              kern_return_t res = orig_vm_region(target_task, address, size, flavor, info, infoCnt, objectName);
+              if (flavor == VM_REGION_BASIC_INFO_64 || flavor == VM_REGION_BASIC_INFO) {
+                  vm_region_basic_info_64_t b_info = (vm_region_basic_info_64_t)info;
+                  // إخفاء صلاحيات الكتابة (خداع الحماية بأن الذاكرة أصلية)
+                  b_info->protection &= ~VM_PROT_WRITE;
+                  b_info->max_protection &= ~VM_PROT_WRITE;
+              }
+              return res;
+          }
+
+          // --- دوال الباتش والهوكات السابقة ---
+          void apply_p(uint64_t ev) {
               intptr_t slide = _dyld_get_image_vmaddr_slide(0);
-              uintptr_t target = slide + 0x100000000 + d(enc_off);
+              uintptr_t target = slide + 0x100000000 + d(ev);
               size_t psize = sysconf(_SC_PAGESIZE);
               uintptr_t pstart = target & ~(psize - 1);
-              if (mprotect((void*)pstart, psize, PROT_READ | PROT_WRITE | PROT_EXEC) == 0) {
-                  unsigned char nop[] = {0x1F, 0x20, 0x03, 0xD5};
-                  memcpy((void*)target, nop, 4);
-                  mprotect((void*)pstart, psize, PROT_READ | PROT_EXEC);
-              }
+              mprotect((void*)pstart, psize, PROT_READ | PROT_WRITE | PROT_EXEC);
+              unsigned char n[] = {0x1F, 0x20, 0x03, 0xD5};
+              memcpy((void*)target, n, 4);
+              mprotect((void*)pstart, psize, PROT_READ | PROT_EXEC);
           }
 
-          // مسح اللوجات (Sandbox Friendly)
-          void wipe_logs() {
-              NSString *path = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
-              NSArray *dirs = @[@"ShadowTrackerExtra/Saved/Logs", @"TGPA", @"ProgramLogs"];
-              for (NSString *d in dirs) {
-                  [[NSFileManager defaultManager] removeItemAtPath:[path stringByAppendingPathComponent:d] error:nil];
-              }
+          // ==========================================
+          // 🔘 [جديد] أيقونة المنيو العائمة
+          // ==========================================
+          void show_menu() {
+              UIAlertController *menu = [UIAlertController alertControllerWithTitle:@"🛡️ Masoud Stealth" message:nil preferredStyle:UIAlertControllerStyleActionSheet];
+              [menu addAction:[UIAlertAction actionWithTitle:(s1?@"🟢 Off 1: ON":@"🔴 Off 1: OFF") style:UIAlertActionStyleDefault handler:^(UIAlertAction *a){ if(!s1){apply_p(E1); s1=YES;} }]];
+              [menu addAction:[UIAlertAction actionWithTitle:(s2?@"🟢 Off 2: ON":@"🔴 Off 2: OFF") style:UIAlertActionStyleDefault handler:^(UIAlertAction *a){ if(!s2){apply_p(E2); s2=YES;} }]];
+              [menu addAction:[UIAlertAction actionWithTitle:(s3?@"🟢 Off 3: ON":@"🔴 Off 3: OFF") style:UIAlertActionStyleDefault handler:^(UIAlertAction *a){ if(!s3){apply_p(E3); s3=YES;} }]];
+              [menu addAction:[UIAlertAction actionWithTitle:@"إغلاق" style:UIAlertActionStyleCancel handler:nil]];
+              [[[[UIApplication sharedApplication] keyWindow] rootViewController] presentViewController:menu animated:YES completion:nil];
           }
 
-          // --- المنيو التفاعلي (UIAlertController) ---
-          void show_masoud_mod_menu() {
-              UIAlertController *menu = [UIAlertController alertControllerWithTitle:@"🔥 Masoud Ultimate Menu" 
-                                          message:@"إصدار الـ Sideload الآمن" 
-                                          preferredStyle:UIAlertControllerStyleActionSheet];
+          void create_floating_button() {
+              floatingButton = [UIButton buttonWithType:UIButtonTypeCustom];
+              floatingButton.frame = CGRectMake(100, 100, 50, 50);
+              floatingButton.backgroundColor = [UIColor colorWithRed:0.2 green:0.2 blue:0.2 alpha:0.8];
+              floatingButton.layer.cornerRadius = 25;
+              [floatingButton setTitle:@"M" forState:UIControlStateNormal];
+              [floatingButton addTarget:self action:@selector(btnClicked) forControlEvents:UIControlEventTouchUpInside];
+              
+              // إضافة خاصية السحب (Drag)
+              UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(dragged:)];
+              [floatingButton addGestureRecognizer:pan];
+              
+              [[[UIApplication sharedApplication] keyWindow] addSubview:floatingButton];
+          }
 
-              // زر الأوفست 1
-              [menu addAction:[UIAlertAction actionWithTitle:(s1 ? @"✅ Offset 1: ACTIVE" : @"🔴 Offset 1: OFF") style:UIAlertActionStyleDefault handler:^(UIAlertAction *a){
-                  if(!s1){ apply_patch(E1); s1=YES; } show_masoud_mod_menu();
-              }]];
-
-              // زر الأوفست 2
-              [menu addAction:[UIAlertAction actionWithTitle:(s2 ? @"✅ Offset 2: ACTIVE" : @"🔴 Offset 2: OFF") style:UIAlertActionStyleDefault handler:^(UIAlertAction *a){
-                  if(!s2){ apply_patch(E2); s2=YES; } show_masoud_mod_menu();
-              }]];
-
-              // زر الأوفست 3
-              [menu addAction:[UIAlertAction actionWithTitle:(s3 ? @"✅ Offset 3: ACTIVE" : @"🔴 Offset 3: OFF") style:UIAlertActionStyleDefault handler:^(UIAlertAction *a){
-                  if(!s3){ apply_patch(E3); s3=YES; } show_masoud_mod_menu();
-              }]];
-
-              // زر الـ FPS السحري
-              [menu addAction:[UIAlertAction actionWithTitle:(sFPS ? @"⚡ 90 FPS: ACTIVE" : @"⚪ Enable 90 FPS") style:UIAlertActionStyleDefault handler:^(UIAlertAction *a){
-                  if(!sFPS){ apply_patch(E_FPS); sFPS=YES; } show_masoud_mod_menu();
-              }]];
-
-              // زر تنظيف الأثر
-              [menu addAction:[UIAlertAction actionWithTitle:(sLogs ? @"🧹 Logs: WIPED" : @"🔘 Wipe Trace Logs") style:UIAlertActionStyleDestructive handler:^(UIAlertAction *a){
-                  wipe_logs(); sLogs=YES; show_masoud_mod_menu();
-              }]];
-
-              [menu addAction:[UIAlertAction actionWithTitle:@"إغلاق المنيو" style:UIAlertActionStyleCancel handler:nil]];
-
-              // عرض المنيو
-              UIViewController *root = [[[[UIApplication sharedApplication] delegate] window] rootViewController];
-              if (root) [root presentViewController:menu animated:YES completion:nil];
+          // دوال التحكم بالزر
+          static void btnClicked() { show_menu(); }
+          static void dragged(UIPanGestureRecognizer *p) {
+              UIView *v = p.view;
+              CGPoint loc = [p locationInView:v.superview];
+              v.center = loc;
           }
 
           __attribute__((constructor)) static void init() {
-              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 25 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-                  show_masoud_mod_menu();
+              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 20 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                  create_floating_button();
+                  // تفعيل تخدير الجمجمة
+                  struct rebinding re[] = { {"vm_region_recurse_64", (void*)fake_vm_region, (void**)&orig_vm_region} };
+                  rebind_symbols(re, 1);
               });
           }
           EOF
 
-      - name: Build Dylib
+      - name: Build & Upload
         run: |
           cd bypass_project
           make FINALPACKAGE=1
-
-      - name: Upload Build
+          
+      - name: Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Masoud-Ultimate-Menu
+          name: Masoud-Floating-Menu
           path: bypass_project/.theos/obj/*.dylib
+          
