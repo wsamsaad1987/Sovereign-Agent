@@ -3,10 +3,17 @@ name: Build Ultimate ShadowBypass
 on:
   workflow_dispatch: # يخليك تشغل البناء بضغطة زر من صفحة Actions
 
+# إضافة دعم Node.js 24 الجديد لتجنب التحذيرات
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     runs-on: macos-latest
     steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
       - name: Setup Theos
         uses: theos/setup-theos@v2
 
@@ -19,6 +26,20 @@ jobs:
           curl -sO https://raw.githubusercontent.com/facebook/fishhook/main/fishhook.h
           curl -sO https://raw.githubusercontent.com/facebook/fishhook/main/fishhook.c
           
+          # إنشاء ملف الـ Control (ضروري جداً لنجاح البناء)
+          echo "Creating control file..."
+          cat << 'EOF' > control
+          Package: com.masoud.shadowbypass
+          Name: ShadowBypass
+          Depends: mobilesubstrate
+          Version: 1.0.0
+          Architecture: iphoneos-arm
+          Description: Ultimate Bypass by Masoud
+          Maintainer: Masoud
+          Author: Masoud
+          Section: Tweaks
+          EOF
+
           echo "Creating Makefile..."
           cat << 'EOF' > Makefile
           ARCHS = arm64
@@ -119,7 +140,7 @@ jobs:
                   
                   // 2. تشغيل الهوك العكسي
                   struct rebinding rebindings[] = {
-                      {"dlsym", hooked_dlsym, (void *)&original_dlsym}
+                      {"dlsym", (void *)hooked_dlsym, (void **)&original_dlsym}
                   };
                   rebind_symbols(rebindings, 1);
                   
@@ -132,9 +153,12 @@ jobs:
         run: |
           cd bypass_project
           make FINALPACKAGE=1
+          # تجهيز المخرجات في مجلد واضح
+          mkdir -p ../output
+          find .theos/obj -name "*.dylib" -exec cp {} ../output/ \;
           
       - name: Upload Dylib Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Masoud-Ultimate-Dylib
-          path: bypass_project/.theos/obj/**/*.dylib
+          path: output/*.dylib
