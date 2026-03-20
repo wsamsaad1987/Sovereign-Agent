@@ -16,16 +16,19 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Theos & SDK (Manual)
+      - name: Setup Theos, SDK & Ldid (Manual)
         run: |
-          # 1. تنصيب التوس يدوياً
+          # 1. تنصيب أداة الختم (ldid) الضرورية للـ Signing
+          brew install ldid
+          
+          # 2. تنصيب التوس يدوياً
           git clone --recursive https://github.com/theos/theos.git $THEOS
           
-          # 2. تنظيف وتحميل الـ SDKات
+          # 3. تنظيف وتحميل الـ SDKات
           rm -rf $THEOS/sdks
           git clone --depth 1 https://github.com/theos/sdks.git $THEOS/sdks
           
-          # 3. تفعيل المسارات
+          # 4. تفعيل المسارات
           echo "THEOS=$THEOS" >> $GITHUB_ENV
           echo "$THEOS/bin" >> $GITHUB_PATH
 
@@ -69,7 +72,7 @@ jobs:
           { Filter = { Bundles = ( "com.tencent.ig" ); }; }
           EOF
 
-          # كود الـ Tweak.xm (تم تصحيح خطأ الـ const char*)
+          # كود الـ Tweak.xm مالتك بدون أي نقص
           cat << 'EOF' > Tweak.xm
           #import <Foundation/Foundation.h>
           #import <mach-o/dyld.h>
@@ -108,7 +111,6 @@ jobs:
               return _dyld_get_image_header(image_index);
           }
           
-          // تصحيح الخطأ هنا بإضافة (char *)
           char* fake_strstr(const char *haystack, const char *needle) {
               if (needle && (strcmp(needle, "frida") == 0 || strcmp(needle, "Cydia") == 0 || strcmp(needle, "Substrate") == 0)) {
                   return NULL;
