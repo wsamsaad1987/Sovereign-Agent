@@ -18,15 +18,13 @@ jobs:
 
       - name: Setup Theos & SDK (Manual)
         run: |
-          # تنصيب التوس يدوياً لضمان العمل 100%
+          # 1. تنصيب التوس يدوياً
           git clone --recursive https://github.com/theos/theos.git $THEOS
           
-          # تحميل الـ SDK الضروري للبناء
-          mkdir -p $THEOS/sdks
-          curl -LO https://github.com/theos/sdks/raw/master/iPhoneOS14.5.sdk.tar.xz
-          tar -xf iPhoneOS14.5.sdk.tar.xz -C $THEOS/sdks
+          # 2. تحميل الـ SDK بطريقة Git (أضمن من التحميل المباشر لتجنب ملفات الـ HTML الخطأ)
+          git clone --depth 1 https://github.com/theos/sdks.git $THEOS/sdks
           
-          # تفعيل المسارات في السيرفر
+          # 3. تفعيل المسارات في السيرفر
           echo "THEOS=$THEOS" >> $GITHUB_ENV
           echo "$THEOS/bin" >> $GITHUB_PATH
 
@@ -35,7 +33,7 @@ jobs:
           mkdir -p bypass_project
           cd bypass_project
           
-          # تحميل fishhook (كود الصهر الأساسي)
+          # تحميل fishhook
           curl -sO https://raw.githubusercontent.com/facebook/fishhook/main/fishhook.h
           curl -sO https://raw.githubusercontent.com/facebook/fishhook/main/fishhook.c
           
@@ -50,7 +48,7 @@ jobs:
           Section: Tweaks
           EOF
 
-          # إنشاء الـ Makefile (دمج الملفات)
+          # إنشاء الـ Makefile (بقينا نفس إعداداتك بالتمام)
           cat << 'EOF' > Makefile
           ARCHS = arm64
           TARGET = iphone:clang:latest:14.0
@@ -59,7 +57,6 @@ jobs:
           include $(THEOS)/makefiles/common.mk
 
           TWEAK_NAME = ShadowBypass
-          # هنا الصهر الحقيقي: دمج التويك مع الفيش هوك
           ShadowBypass_FILES = Tweak.xm fishhook.c
           ShadowBypass_CFLAGS = -fobjc-arc
 
@@ -71,7 +68,7 @@ jobs:
           { Filter = { Bundles = ( "com.tencent.ig" ); }; }
           EOF
 
-          # كود الـ Tweak.xm (تم تصحيح الأخطاء البرمجية)
+          # كود الـ Tweak.xm (بقينا الأوفستات مالتك وكل الهوك)
           cat << 'EOF' > Tweak.xm
           #import <Foundation/Foundation.h>
           #import <mach-o/dyld.h>
@@ -133,7 +130,6 @@ jobs:
                   apply_memory_patch(0x68F0BC0); 
                   apply_memory_patch(0x68F2BB8); 
                   
-                  // تصحيح الصهر النهائي هنا
                   struct rebinding rebindings[] = {
                       {"dlsym", (void *)hooked_dlsym, (void **)&original_dlsym}
                   };
@@ -154,4 +150,3 @@ jobs:
         with:
           name: Masoud-Ultimate-Dylib
           path: bypass_project/.theos/obj/*.dylib
-          
