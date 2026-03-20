@@ -1,4 +1,4 @@
-name: Masoud Stealth Floating Menu
+name: Masoud Pro Build - Stealth Menu
 
 on:
   push:
@@ -16,26 +16,25 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Theos
+      - name: Setup Theos & SDKs
         run: |
           brew install ldid
-          # تنزيل التوس
           git clone --recursive https://github.com/theos/theos.git $THEOS
-          # السطر المنقذ: مسح أي مجلد SDKs قديم لتجنب الخطأ 128
           rm -rf $THEOS/sdks
-          # تنزيل الـ SDKs من جديد
           git clone --depth 1 https://github.com/theos/sdks.git $THEOS/sdks
           echo "THEOS=$THEOS" >> $GITHUB_ENV
           echo "$THEOS/bin" >> $GITHUB_PATH
 
-      - name: Create Project
+      - name: Create Project Structure
         run: |
           mkdir -p bypass_project
           cd bypass_project
           
+          # تحميل مكتبة fishhook
           curl -sO https://raw.githubusercontent.com/facebook/fishhook/main/fishhook.h
           curl -sO https://raw.githubusercontent.com/facebook/fishhook/main/fishhook.c
           
+          # إنشاء Makefile
           cat << 'EOF' > Makefile
           ARCHS = arm64
           TARGET = iphone:clang:latest:14.0
@@ -48,10 +47,12 @@ jobs:
           include $(THEOS_MAKE_PATH)/tweak.mk
           EOF
           
+          # إنشاء Plist
           cat << 'EOF' > ShadowBypass.plist
           { Filter = { Bundles = ( "com.tencent.ig" ); }; }
           EOF
 
+          # كود الـ Tweak.xm (الصهر + المنيو + التخدير)
           cat << 'EOF' > Tweak.xm
           #import <Foundation/Foundation.h>
           #import <mach-o/dyld.h>
@@ -63,14 +64,27 @@ jobs:
 
           #define KEY 0xDEADC0DE12345678ULL
           uintptr_t d(uint64_t v) { return (uintptr_t)(v ^ KEY); }
-          #define E1 0xDEADC0DE14BBAB58ULL
-          #define E2 0xDEADC0DE14BB89B8ULL
-          #define E3 0xDEADC0DE14BBA9C8ULL
+          #define E1 0xDEADC0DE14BBAB58ULL 
+          #define E2 0xDEADC0DE14BB89B8ULL 
+          #define E3 0xDEADC0DE14BBA9C8ULL 
 
           static BOOL s1=NO, s2=NO, s3=NO;
           static UIButton *floatingButton;
 
+          static void* (*orig_dlsym)(void* h, const char* s);
+          static char* (*orig_strstr)(const char* h, const char* n);
           static kern_return_t (*orig_vm_region)(vm_map_t, vm_address_t *, vm_size_t *, int, vm_region_info_t, mach_msg_type_number_t *, mach_port_t *);
+
+          // --- هوكات الصهر ---
+          char* fake_strstr(const char* h, const char* n) {
+              if (h && n && (strstr(n, "frid") || strstr(n, "Cydi"))) return NULL;
+              return orig_strstr ? orig_strstr(h, n) : (char*)strstr(h, n);
+          }
+
+          void* fake_dlsym(void* h, const char* s) {
+              if (s && strcmp(s, "strstr") == 0) return (void*)fake_strstr;
+              return orig_dlsym ? orig_dlsym(h, s) : dlsym(h, s);
+          }
 
           kern_return_t fake_vm_region(vm_map_t target_task, vm_address_t *address, vm_size_t *size, int flavor, vm_region_info_t info, mach_msg_type_number_t *infoCnt, mach_port_t *objectName) {
               kern_return_t res = orig_vm_region(target_task, address, size, flavor, info, infoCnt, objectName);
@@ -93,50 +107,77 @@ jobs:
               mprotect((void*)pstart, psize, PROT_READ | PROT_EXEC);
           }
 
-          void show_menu() {
+          // --- المنيو العائم ---
+          @interface MasoudMenuManager : NSObject
+          + (instancetype)sharedInstance;
+          - (void)showMenu;
+          @end
+
+          @implementation MasoudMenuManager
+          + (instancetype)sharedInstance {
+              static MasoudMenuManager *shared = nil;
+              static dispatch_once_t onceToken;
+              dispatch_once(&onceToken, ^{ shared = [[self alloc] init]; });
+              return shared;
+          }
+          - (void)showMenu {
               UIAlertController *menu = [UIAlertController alertControllerWithTitle:@"🛡️ Masoud Stealth" message:nil preferredStyle:UIAlertControllerStyleActionSheet];
               [menu addAction:[UIAlertAction actionWithTitle:(s1?@"🟢 Off 1: ON":@"🔴 Off 1: OFF") style:UIAlertActionStyleDefault handler:^(UIAlertAction *a){ if(!s1){apply_p(E1); s1=YES;} }]];
               [menu addAction:[UIAlertAction actionWithTitle:(s2?@"🟢 Off 2: ON":@"🔴 Off 2: OFF") style:UIAlertActionStyleDefault handler:^(UIAlertAction *a){ if(!s2){apply_p(E2); s2=YES;} }]];
               [menu addAction:[UIAlertAction actionWithTitle:(s3?@"🟢 Off 3: ON":@"🔴 Off 3: OFF") style:UIAlertActionStyleDefault handler:^(UIAlertAction *a){ if(!s3){apply_p(E3); s3=YES;} }]];
               [menu addAction:[UIAlertAction actionWithTitle:@"إغلاق" style:UIAlertActionStyleCancel handler:nil]];
-              [[[[UIApplication sharedApplication] keyWindow] rootViewController] presentViewController:menu animated:YES completion:nil];
+              
+              UIWindow *window = nil;
+              for (UIWindowScene* ws in [UIApplication sharedApplication].connectedScenes) {
+                  if (ws.activationState == UISceneActivationStateForegroundActive) { window = ws.windows.firstObject; break; }
+              }
+              if (!window) window = [UIApplication sharedApplication].windows.firstObject;
+              [window.rootViewController presentViewController:menu animated:YES completion:nil];
           }
+          - (void)btnClicked { [self showMenu]; }
+          - (void)dragged:(UIPanGestureRecognizer *)p {
+              p.view.center = [p locationInView:p.view.superview];
+          }
+          @end
 
-          void create_floating_button() {
+          void create_button() {
               floatingButton = [UIButton buttonWithType:UIButtonTypeCustom];
-              floatingButton.frame = CGRectMake(100, 100, 50, 50);
-              floatingButton.backgroundColor = [UIColor colorWithRed:0.2 green:0.2 blue:0.2 alpha:0.8];
-              floatingButton.layer.cornerRadius = 25;
+              floatingButton.frame = CGRectMake(100, 100, 60, 60);
+              floatingButton.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.7];
+              floatingButton.layer.cornerRadius = 30;
               [floatingButton setTitle:@"M" forState:UIControlStateNormal];
-              [floatingButton addTarget:self action:@selector(btnClicked) forControlEvents:UIControlEventTouchUpInside];
-              UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(dragged:)];
-              [floatingButton addGestureRecognizer:pan];
-              [[[UIApplication sharedApplication] keyWindow] addSubview:floatingButton];
-          }
-
-          static void btnClicked() { show_menu(); }
-          static void dragged(UIPanGestureRecognizer *p) {
-              UIView *v = p.view;
-              CGPoint loc = [p locationInView:v.superview];
-              v.center = loc;
+              [floatingButton addTarget:[MasoudMenuManager sharedInstance] action:@selector(btnClicked) forControlEvents:UIControlEventTouchUpInside];
+              [floatingButton addGestureRecognizer:[[UIPanGestureRecognizer alloc] initWithTarget:[MasoudMenuManager sharedInstance] action:@selector(dragged:)]];
+              
+              UIWindow *window = nil;
+              for (UIWindowScene* ws in [UIApplication sharedApplication].connectedScenes) {
+                  if (ws.activationState == UISceneActivationStateForegroundActive) { window = ws.windows.firstObject; break; }
+              }
+              if (!window) window = [UIApplication sharedApplication].windows.firstObject;
+              [window addSubview:floatingButton];
           }
 
           __attribute__((constructor)) static void init() {
               dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 20 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-                  create_floating_button();
-                  struct rebinding re[] = { {"vm_region_recurse_64", (void*)fake_vm_region, (void**)&orig_vm_region} };
-                  rebind_symbols(re, 1);
+                  create_button();
+                  struct rebinding re[] = {
+                      {"dlsym", (void*)fake_dlsym, (void**)&orig_dlsym},
+                      {"strstr", (void*)fake_strstr, (void**)&orig_strstr},
+                      {"vm_region_recurse_64", (void*)fake_vm_region, (void**)&orig_vm_region}
+                  };
+                  rebind_symbols(re, 3);
               });
           }
           EOF
 
-      - name: Build & Upload
+      - name: Build Dylib
         run: |
           cd bypass_project
           make FINALPACKAGE=1
-          
-      - name: Artifact
+
+      - name: Upload Build
         uses: actions/upload-artifact@v4
         with:
-          name: Masoud-Floating-Menu
+          name: Masoud-Ultimate-Dylib
           path: bypass_project/.theos/obj/*.dylib
+          
