@@ -1,0 +1,58 @@
+name: Masoud Ultimate Build
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch: # هذا يخلي زر التشغيل يظهر عندك
+
+env:
+  THEOS: ${{ github.workspace }}/theos
+
+jobs:
+  build:
+    # غيرناه من ubuntu لـ macos لأن بناء الدايلب يحتاج نظام آبل
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Theos & SDK (Manual)
+        run: |
+          # تنصيب التوس يدوياً لضمان العمل 100%
+          git clone --recursive https://github.com/theos/theos.git $THEOS
+          
+          # تحميل الـ SDK الضروري للبناء
+          mkdir -p $THEOS/sdks
+          curl -LO https://github.com/theos/sdks/raw/master/iPhoneOS14.5.sdk.tar.xz
+          tar -xf iPhoneOS14.5.sdk.tar.xz -C $THEOS/sdks
+          
+          # تفعيل المسارات في السيرفر
+          echo "THEOS=$THEOS" >> $GITHUB_ENV
+          echo "$THEOS/bin" >> $GITHUB_PATH
+
+      - name: Create Project Files
+        run: |
+          mkdir -p project
+          cd project
+          
+          # تحميل مكتبة fishhook
+          curl -sO https://raw.githubusercontent.com/facebook/fishhook/main/fishhook.h
+          curl -sO https://raw.githubusercontent.com/facebook/fishhook/main/fishhook.c
+          
+          # إنشاء ملف الـ Control
+          cat << 'EOF' > control
+          Package: com.masoud.ultimate.bypass
+          Name: ShadowBypass
+          Version: 1.0.0
+          Architecture: iphoneos-arm
+          Maintainer: Masoud
+          Author: Masoud
+          Section: Tweaks
+          EOF
+
+          # إنشاء الـ Makefile (بإعدادات الماك الاحترافية)
+          cat << 'EOF' > Makefile
+          ARCHS = arm64
+          TARGET = iphone:clang:latest:14.0
+          
