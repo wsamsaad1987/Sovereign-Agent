@@ -21,7 +21,7 @@ jobs:
           # 1. تنصيب التوس يدوياً
           git clone --recursive https://github.com/theos/theos.git $THEOS
           
-          # 2. الحل القاضي: حذف مجلد الـ SDKs القديم إذا كان موجوداً قبل الاستنساخ
+          # 2. تنظيف وتحميل الـ SDKات
           rm -rf $THEOS/sdks
           git clone --depth 1 https://github.com/theos/sdks.git $THEOS/sdks
           
@@ -49,7 +49,7 @@ jobs:
           Section: Tweaks
           EOF
 
-          # إنشاء الـ Makefile (بقينا نفس إعداداتك)
+          # إنشاء الـ Makefile
           cat << 'EOF' > Makefile
           ARCHS = arm64
           TARGET = iphone:clang:latest:14.0
@@ -69,7 +69,7 @@ jobs:
           { Filter = { Bundles = ( "com.tencent.ig" ); }; }
           EOF
 
-          # كود الـ Tweak.xm (بقينا الأوفستات مالتك وكل الهوك)
+          # كود الـ Tweak.xm (تم تصحيح خطأ الـ const char*)
           cat << 'EOF' > Tweak.xm
           #import <Foundation/Foundation.h>
           #import <mach-o/dyld.h>
@@ -108,11 +108,12 @@ jobs:
               return _dyld_get_image_header(image_index);
           }
           
+          // تصحيح الخطأ هنا بإضافة (char *)
           char* fake_strstr(const char *haystack, const char *needle) {
               if (needle && (strcmp(needle, "frida") == 0 || strcmp(needle, "Cydia") == 0 || strcmp(needle, "Substrate") == 0)) {
                   return NULL;
               }
-              return strstr(haystack, needle);
+              return (char *)strstr(haystack, needle);
           }
           
           void* hooked_dlsym(void* handle, const char* symbol) {
