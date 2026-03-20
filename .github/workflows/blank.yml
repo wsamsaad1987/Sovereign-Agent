@@ -1,4 +1,4 @@
-name: Masoud Ultimate Build
+name: Masoud Ultimate Mod Menu
 
 on:
   push:
@@ -16,7 +16,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Theos, SDK & Ldid (Manual)
+      - name: Setup Theos & SDKs
         run: |
           brew install ldid
           git clone --recursive https://github.com/theos/theos.git $THEOS
@@ -25,166 +25,128 @@ jobs:
           echo "THEOS=$THEOS" >> $GITHUB_ENV
           echo "$THEOS/bin" >> $GITHUB_PATH
 
-      - name: Create Bypass Project
+      - name: Create Project Structure
         run: |
           mkdir -p bypass_project
           cd bypass_project
           
+          # تحميل مكتبة fishhook للهوكين
           curl -sO https://raw.githubusercontent.com/facebook/fishhook/main/fishhook.h
           curl -sO https://raw.githubusercontent.com/facebook/fishhook/main/fishhook.c
           
-          cat << 'EOF' > control
-          Package: com.masoud.ultimate.bypass
-          Name: ShadowBypass
-          Version: 1.0.0
-          Architecture: iphoneos-arm
-          Maintainer: Masoud
-          Author: Masoud
-          Section: Tweaks
-          EOF
-
+          # إنشاء Makefile
           cat << 'EOF' > Makefile
           ARCHS = arm64
           TARGET = iphone:clang:latest:14.0
           SYSROOT = $(THEOS)/sdks/iPhoneOS14.5.sdk
-          
           include $(THEOS)/makefiles/common.mk
-
           TWEAK_NAME = ShadowBypass
           ShadowBypass_FILES = Tweak.xm fishhook.c
           ShadowBypass_CFLAGS = -fobjc-arc
-
           include $(THEOS_MAKE_PATH)/tweak.mk
           EOF
           
+          # إنشاء Plist
           cat << 'EOF' > ShadowBypass.plist
           { Filter = { Bundles = ( "com.tencent.ig" ); }; }
           EOF
 
-          # كود الـ Tweak.xm مضاف إليه خاصية "مسح الأثر"
+          # كود الـ Tweak.xm مع المنيو المتطور
           cat << 'EOF' > Tweak.xm
           #import <Foundation/Foundation.h>
           #import <mach-o/dyld.h>
           #import <sys/mman.h>
-          #import <string.h>
           #import <dlfcn.h>
+          #import <UIKit/UIKit.h>
           #import "fishhook.h"
 
-          // ==========================================
-          // 🧹 دالة مسح الأثر (Anti-Forensics / Log Wiper)
-          // ==========================================
-          void clear_game_logs() {
-              NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
-              NSString *documentsDirectory = [paths firstObject];
-              
-              // مسارات ملفات السجل الخاصة باللعبة
-              NSArray *logPaths = @[
-                  [documentsDirectory stringByAppendingPathComponent:@"ShadowTrackerExtra/Saved/Logs"],
-                  [documentsDirectory stringByAppendingPathComponent:@"logs"],
-                  [documentsDirectory stringByAppendingPathComponent:@"TGPA/logs"],
-                  [documentsDirectory stringByAppendingPathComponent:@"ProgramLogs"]
-              ];
-              
-              NSFileManager *fileManager = [NSFileManager defaultManager];
-              for (NSString *path in logPaths) {
-                  if ([fileManager fileExistsAtPath:path]) {
-                      [fileManager removeItemAtPath:path error:nil];
-                  }
-              }
-              NSLog(@"[+] Masoud: All Game Trace Logs Wiped Successfully!");
-          }
+          // --- نظام التشفير XOR للأوفستات ---
+          #define KEY 0xDEADC0DE12345678ULL
+          uintptr_t d(uint64_t v) { return (uintptr_t)(v ^ KEY); }
 
-          // ==========================================
-          // 🛠️ دالة التعديل على الذاكرة
-          // ==========================================
-          void apply_memory_patch(uint64_t ida_offset) {
+          // الأوفستات المشفرة
+          #define E1 0xDEADC0DE14BBAB58ULL // Bypass 1
+          #define E2 0xDEADC0DE14BB89B8ULL // Bypass 2
+          #define E3 0xDEADC0DE14BBA9C8ULL // Bypass 3
+          #define E_FPS 0xDEADC0DE14BAF123ULL // أوفست الـ FPS (كمثال)
+
+          // --- حالات الأزرار ---
+          static BOOL s1=NO, s2=NO, s3=NO, sFPS=NO, sLogs=NO;
+
+          // دالة الباتش الآمنة
+          void apply_patch(uint64_t enc_off) {
               intptr_t slide = _dyld_get_image_vmaddr_slide(0);
-              uintptr_t target_addr = slide + 0x100000000 + ida_offset;
-              
-              size_t page_size = sysconf(_SC_PAGESIZE);
-              uintptr_t page_start = target_addr & ~(page_size - 1);
-              mprotect((void*)page_start, page_size, PROT_READ | PROT_WRITE | PROT_EXEC);
-              
-              unsigned char nop_bytes[] = {0x1F, 0x20, 0x03, 0xD5};
-              memcpy((void*)target_addr, nop_bytes, 4);
+              uintptr_t target = slide + 0x100000000 + d(enc_off);
+              size_t psize = sysconf(_SC_PAGESIZE);
+              uintptr_t pstart = target & ~(psize - 1);
+              if (mprotect((void*)pstart, psize, PROT_READ | PROT_WRITE | PROT_EXEC) == 0) {
+                  unsigned char nop[] = {0x1F, 0x20, 0x03, 0xD5};
+                  memcpy((void*)target, nop, 4);
+                  mprotect((void*)pstart, psize, PROT_READ | PROT_EXEC);
+              }
           }
 
-          static void* (*original_dlsym)(void* handle, const char* symbol);
-          static char* (*original_strstr)(const char *haystack, const char *needle);
-          
-          const char* fake_dyld_get_image_name(uint32_t image_index) {
-              const char *real_name = _dyld_get_image_name(image_index); 
-              if (real_name && (strstr(real_name, "ShadowBypass") || strstr(real_name, "MobileSubstrate") || strstr(real_name, "Cydia"))) {
-                  return "/usr/lib/system/libdyld.dylib";
+          // مسح اللوجات (Sandbox Friendly)
+          void wipe_logs() {
+              NSString *path = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
+              NSArray *dirs = @[@"ShadowTrackerExtra/Saved/Logs", @"TGPA", @"ProgramLogs"];
+              for (NSString *d in dirs) {
+                  [[NSFileManager defaultManager] removeItemAtPath:[path stringByAppendingPathComponent:d] error:nil];
               }
-              return real_name;
           }
 
-          const struct mach_header* fake_dyld_get_image_header(uint32_t image_index) {
-              const char *real_name = _dyld_get_image_name(image_index);
-              if (real_name && (strstr(real_name, "ShadowBypass") || strstr(real_name, "MobileSubstrate") || strstr(real_name, "Cydia"))) {
-                  return _dyld_get_image_header(0); 
-              }
-              return _dyld_get_image_header(image_index);
-          }
-          
-          char* fake_strstr(const char *haystack, const char *needle) {
-              if (haystack == NULL || needle == NULL) return NULL;
+          // --- المنيو التفاعلي (UIAlertController) ---
+          void show_masoud_mod_menu() {
+              UIAlertController *menu = [UIAlertController alertControllerWithTitle:@"🔥 Masoud Ultimate Menu" 
+                                          message:@"إصدار الـ Sideload الآمن" 
+                                          preferredStyle:UIAlertControllerStyleActionSheet];
 
-              if (strcmp(needle, "frida") == 0 || strcmp(needle, "Cydia") == 0 || strcmp(needle, "Substrate") == 0) {
-                  return NULL;
-              }
-              
-              if (original_strstr != NULL) {
-                  return original_strstr(haystack, needle);
-              }
-              return (char *)strstr(haystack, needle);
-          }
-          
-          void* hooked_dlsym(void* handle, const char* symbol) {
-              if (symbol) {
-                  if (strcmp(symbol, "_dyld_get_image_name") == 0) return (void*)fake_dyld_get_image_name;
-                  if (strcmp(symbol, "_dyld_get_image_header") == 0) return (void*)fake_dyld_get_image_header;
-                  if (strcmp(symbol, "strstr") == 0) return (void*)fake_strstr;
-              }
-              
-              if (original_dlsym != NULL) {
-                  return original_dlsym(handle, symbol);
-              }
-              return NULL;
+              // زر الأوفست 1
+              [menu addAction:[UIAlertAction actionWithTitle:(s1 ? @"✅ Offset 1: ACTIVE" : @"🔴 Offset 1: OFF") style:UIAlertActionStyleDefault handler:^(UIAlertAction *a){
+                  if(!s1){ apply_patch(E1); s1=YES; } show_masoud_mod_menu();
+              }]];
+
+              // زر الأوفست 2
+              [menu addAction:[UIAlertAction actionWithTitle:(s2 ? @"✅ Offset 2: ACTIVE" : @"🔴 Offset 2: OFF") style:UIAlertActionStyleDefault handler:^(UIAlertAction *a){
+                  if(!s2){ apply_patch(E2); s2=YES; } show_masoud_mod_menu();
+              }]];
+
+              // زر الأوفست 3
+              [menu addAction:[UIAlertAction actionWithTitle:(s3 ? @"✅ Offset 3: ACTIVE" : @"🔴 Offset 3: OFF") style:UIAlertActionStyleDefault handler:^(UIAlertAction *a){
+                  if(!s3){ apply_patch(E3); s3=YES; } show_masoud_mod_menu();
+              }]];
+
+              // زر الـ FPS السحري
+              [menu addAction:[UIAlertAction actionWithTitle:(sFPS ? @"⚡ 90 FPS: ACTIVE" : @"⚪ Enable 90 FPS") style:UIAlertActionStyleDefault handler:^(UIAlertAction *a){
+                  if(!sFPS){ apply_patch(E_FPS); sFPS=YES; } show_masoud_mod_menu();
+              }]];
+
+              // زر تنظيف الأثر
+              [menu addAction:[UIAlertAction actionWithTitle:(sLogs ? @"🧹 Logs: WIPED" : @"🔘 Wipe Trace Logs") style:UIAlertActionStyleDestructive handler:^(UIAlertAction *a){
+                  wipe_logs(); sLogs=YES; show_masoud_mod_menu();
+              }]];
+
+              [menu addAction:[UIAlertAction actionWithTitle:@"إغلاق المنيو" style:UIAlertActionStyleCancel handler:nil]];
+
+              // عرض المنيو
+              UIViewController *root = [[[[UIApplication sharedApplication] delegate] window] rootViewController];
+              if (root) [root presentViewController:menu animated:YES completion:nil];
           }
 
-          __attribute__((constructor)) static void setup_all_bypass() {
-              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 40 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-                  
-                  // 1. مسح آثار اللوجات فوراً
-                  clear_game_logs();
-                  
-                  // 2. تطبيق الحماية (NOPs)
-                  apply_memory_patch(0x68F2720); 
-                  apply_memory_patch(0x68F0BC0); 
-                  apply_memory_patch(0x68F2BB8); 
-                  
-                  // 3. تفعيل الهوكين
-                  struct rebinding rebindings[] = {
-                      {"dlsym", (void *)hooked_dlsym, (void **)&original_dlsym},
-                      {"strstr", (void *)fake_strstr, (void **)&original_strstr}
-                  };
-                  rebind_symbols(rebindings, 2);
-                  
-                  NSLog(@"[+] Masoud Ultimate Bypass Injected & Logs Wiped Successfully!");
+          __attribute__((constructor)) static void init() {
+              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 25 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                  show_masoud_mod_menu();
               });
           }
           EOF
 
-      - name: Compile Dylib
+      - name: Build Dylib
         run: |
           cd bypass_project
           make FINALPACKAGE=1
 
-      - name: Upload Dylib Artifact
+      - name: Upload Build
         uses: actions/upload-artifact@v4
         with:
-          name: Masoud-Ultimate-Dylib
+          name: Masoud-Ultimate-Menu
           path: bypass_project/.theos/obj/*.dylib
-          
