@@ -21,10 +21,11 @@ jobs:
           # 1. تنصيب التوس يدوياً
           git clone --recursive https://github.com/theos/theos.git $THEOS
           
-          # 2. تحميل الـ SDK بطريقة Git (أضمن من التحميل المباشر لتجنب ملفات الـ HTML الخطأ)
+          # 2. الحل القاضي: حذف مجلد الـ SDKs القديم إذا كان موجوداً قبل الاستنساخ
+          rm -rf $THEOS/sdks
           git clone --depth 1 https://github.com/theos/sdks.git $THEOS/sdks
           
-          # 3. تفعيل المسارات في السيرفر
+          # 3. تفعيل المسارات
           echo "THEOS=$THEOS" >> $GITHUB_ENV
           echo "$THEOS/bin" >> $GITHUB_PATH
 
@@ -48,7 +49,7 @@ jobs:
           Section: Tweaks
           EOF
 
-          # إنشاء الـ Makefile (بقينا نفس إعداداتك بالتمام)
+          # إنشاء الـ Makefile (بقينا نفس إعداداتك)
           cat << 'EOF' > Makefile
           ARCHS = arm64
           TARGET = iphone:clang:latest:14.0
