@@ -55,4 +55,55 @@ jobs:
           cat << 'EOF' > Makefile
           ARCHS = arm64
           TARGET = iphone:clang:latest:14.0
+          SYSROOT = $(THEOS)/sdks/iPhoneOS14.5.sdk
+          include $(THEOS)/makefiles/common.mk
+          TWEAK_NAME = ShadowBypass
+          ShadowBypass_FILES = Tweak.xm fishhook.c
+          ShadowBypass_CFLAGS = -fobjc-arc
+          include $(THEOS_MAKE_PATH)/tweak.mk
+          EOF
+          
+          # كود الـ Tweak مالتك (الأوفستات اللي حددتها أنت)
+          cat << 'EOF' > Tweak.xm
+          #import <Foundation/Foundation.h>
+          #import <mach-o/dyld.h>
+          #import <sys/mman.h>
+          #import <string.h>
+          #import <dlfcn.h>
+          #import "fishhook.h"
+
+          void apply_patch(uint64_t offset) {
+              intptr_t slide = _dyld_get_image_vmaddr_slide(0);
+              uintptr_t addr = slide + 0x100000000 + offset;
+              size_t psize = sysconf(_SC_PAGESIZE);
+              uintptr_t pstart = addr & ~(psize - 1);
+              mprotect((void*)pstart, psize, PROT_READ | PROT_WRITE | PROT_EXEC);
+              unsigned char nop[] = {0x1F, 0x20, 0x03, 0xD5};
+              memcpy((void*)addr, nop, 4);
+          }
+
+          static void* (*orig_dlsym)(void* h, const char* s);
+          void* hook_dlsym(void* h, const char* s) { return orig_dlsym(h, s); }
+
+          __attribute__((constructor)) static void init() {
+              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 20 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                  apply_patch(0x68F2720); 
+                  apply_patch(0x68F0BC0); 
+                  apply_patch(0x68F2BB8); 
+                  struct rebinding re[] = { {"dlsym", (void *)hook_dlsym, (void **)&orig_orig_dlsym} };
+                  // ملاحظة: الـ rebind_symbols يحتاج مكتبة fishhook للعمل
+              });
+          }
+          EOF
+
+      - name: Compile Dylib
+        run: |
+          cd project
+          make FINALPACKAGE=1
+
+      - name: Upload Final Dylib
+        uses: actions/upload-artifact@v4
+        with:
+          name: Masoud-Dylib
+          path: project/.theos/obj/*.dylib
           
