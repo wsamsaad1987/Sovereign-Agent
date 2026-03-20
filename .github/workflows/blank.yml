@@ -19,7 +19,11 @@ jobs:
       - name: Setup Theos
         run: |
           brew install ldid
+          # تنزيل التوس
           git clone --recursive https://github.com/theos/theos.git $THEOS
+          # السطر المنقذ: مسح أي مجلد SDKs قديم لتجنب الخطأ 128
+          rm -rf $THEOS/sdks
+          # تنزيل الـ SDKs من جديد
           git clone --depth 1 https://github.com/theos/sdks.git $THEOS/sdks
           echo "THEOS=$THEOS" >> $GITHUB_ENV
           echo "$THEOS/bin" >> $GITHUB_PATH
@@ -57,7 +61,6 @@ jobs:
           #import <mach/mach.h>
           #import "fishhook.h"
 
-          // --- نظام التشفير ---
           #define KEY 0xDEADC0DE12345678ULL
           uintptr_t d(uint64_t v) { return (uintptr_t)(v ^ KEY); }
           #define E1 0xDEADC0DE14BBAB58ULL
@@ -67,24 +70,18 @@ jobs:
           static BOOL s1=NO, s2=NO, s3=NO;
           static UIButton *floatingButton;
 
-          // ==========================================
-          // 💉 [جديد] تخدير دالة vm_region_recurse_64
-          // وظيفتها: منع الحماية من اكتشاف الـ NOPs بالذاكرة
-          // ==========================================
           static kern_return_t (*orig_vm_region)(vm_map_t, vm_address_t *, vm_size_t *, int, vm_region_info_t, mach_msg_type_number_t *, mach_port_t *);
 
           kern_return_t fake_vm_region(vm_map_t target_task, vm_address_t *address, vm_size_t *size, int flavor, vm_region_info_t info, mach_msg_type_number_t *infoCnt, mach_port_t *objectName) {
               kern_return_t res = orig_vm_region(target_task, address, size, flavor, info, infoCnt, objectName);
               if (flavor == VM_REGION_BASIC_INFO_64 || flavor == VM_REGION_BASIC_INFO) {
                   vm_region_basic_info_64_t b_info = (vm_region_basic_info_64_t)info;
-                  // إخفاء صلاحيات الكتابة (خداع الحماية بأن الذاكرة أصلية)
                   b_info->protection &= ~VM_PROT_WRITE;
                   b_info->max_protection &= ~VM_PROT_WRITE;
               }
               return res;
           }
 
-          // --- دوال الباتش والهوكات السابقة ---
           void apply_p(uint64_t ev) {
               intptr_t slide = _dyld_get_image_vmaddr_slide(0);
               uintptr_t target = slide + 0x100000000 + d(ev);
@@ -96,9 +93,6 @@ jobs:
               mprotect((void*)pstart, psize, PROT_READ | PROT_EXEC);
           }
 
-          // ==========================================
-          // 🔘 [جديد] أيقونة المنيو العائمة
-          // ==========================================
           void show_menu() {
               UIAlertController *menu = [UIAlertController alertControllerWithTitle:@"🛡️ Masoud Stealth" message:nil preferredStyle:UIAlertControllerStyleActionSheet];
               [menu addAction:[UIAlertAction actionWithTitle:(s1?@"🟢 Off 1: ON":@"🔴 Off 1: OFF") style:UIAlertActionStyleDefault handler:^(UIAlertAction *a){ if(!s1){apply_p(E1); s1=YES;} }]];
@@ -115,15 +109,11 @@ jobs:
               floatingButton.layer.cornerRadius = 25;
               [floatingButton setTitle:@"M" forState:UIControlStateNormal];
               [floatingButton addTarget:self action:@selector(btnClicked) forControlEvents:UIControlEventTouchUpInside];
-              
-              // إضافة خاصية السحب (Drag)
               UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(dragged:)];
               [floatingButton addGestureRecognizer:pan];
-              
               [[[UIApplication sharedApplication] keyWindow] addSubview:floatingButton];
           }
 
-          // دوال التحكم بالزر
           static void btnClicked() { show_menu(); }
           static void dragged(UIPanGestureRecognizer *p) {
               UIView *v = p.view;
@@ -134,7 +124,6 @@ jobs:
           __attribute__((constructor)) static void init() {
               dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 20 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
                   create_floating_button();
-                  // تفعيل تخدير الجمجمة
                   struct rebinding re[] = { {"vm_region_recurse_64", (void*)fake_vm_region, (void**)&orig_vm_region} };
                   rebind_symbols(re, 1);
               });
@@ -151,4 +140,3 @@ jobs:
         with:
           name: Masoud-Floating-Menu
           path: bypass_project/.theos/obj/*.dylib
-          
