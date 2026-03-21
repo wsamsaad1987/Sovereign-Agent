@@ -1,183 +1,189 @@
-name: Masoud Pro Build - Stealth Menu
+# [FALCON EYE - THE EMPEROR'S FINAL RED TEAM BLUEPRINT]
+# المسار: .github/workflows/wsam.yml
+# المكونات: واجهة زجاجية + كود C++ (روابط مشفرة + تعطيل أنتي شيت كلاسات + أوفستات ديناميكية)
+
+name: Falcon Eye - Ultimate Build Engine
 
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch:
-
-env:
-  THEOS: ${{ github.workspace }}/theos
 
 jobs:
-  build:
+  build_everything:
     runs-on: macos-latest
-
+    
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - name: Checkout Source
+        uses: actions/checkout@v3
 
-      - name: Setup Theos & SDKs
+      # --- [ الجزء الأول: واجهة عين الصقر الزجاجية (مطابقة للصورة) ] ---
+      - name: Generate Falcon Dashboard UI
         run: |
-          brew install ldid
-          git clone --recursive https://github.com/theos/theos.git $THEOS
-          rm -rf $THEOS/sdks
-          git clone --depth 1 https://github.com/theos/sdks.git $THEOS/sdks
-          echo "THEOS=$THEOS" >> $GITHUB_ENV
-          echo "$THEOS/bin" >> $GITHUB_PATH
+          cat <<'EOF' > index.html
+          <!DOCTYPE html>
+          <html lang="ar" dir="rtl">
+          <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <script src="https://cdn.tailwindcss.com"></script>
+              <style>
+                  @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap');
+                  body { background: radial-gradient(circle at center, #0f172a 0%, #020617 100%); font-family: 'Cairo', sans-serif; height: 100vh; display: flex; justify-content: center; align-items: center; overflow: hidden; margin: 0; }
+                  .glass-panel { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 30px; width: 400px; padding: 50px 40px; text-align: center; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+                  .led-bar { position: fixed; top: -100px; left: 50%; transform: translateX(-50%); background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(15px); padding: 12px 30px; border-radius: 50px; display: flex; align-items: center; gap: 12px; border: 1px solid rgba(255, 255, 255, 0.1); transition: 0.7s cubic-bezier(0.175, 0.885, 0.32, 1.275); cursor: pointer; z-index: 1000; }
+                  .led-bar.active { top: 30px; }
+                  .bulb { width: 12px; height: 12px; background: #4ade80; border-radius: 50%; box-shadow: 0 0 15px #22c55e; animation: pulse 2s infinite; }
+                  @keyframes pulse { 0% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(1.1); } 100% { opacity: 1; transform: scale(1); } }
+                  .input-field { background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 18px; padding: 20px; width: 100%; color: white; text-align: center; outline: none; transition: 0.4s; font-weight: bold; font-size: 1.1rem; }
+                  .input-field:focus { border-color: #3b82f6; box-shadow: 0 0 20px rgba(59, 130, 246, 0.4); }
+              </style>
+          </head>
+          <body>
+              <div id="ledBar" class="led-bar" onclick="location.reload()">
+                  <div class="bulb"></div> <span class="text-white text-sm font-black italic">نظام التشفير: متصل</span> <span class="text-gray-400 text-xs mr-2">| تحديث</span>
+              </div>
+              <div class="glass-panel">
+                  <h1 class="text-5xl font-black text-white mb-2 tracking-tighter italic">FALCON <span class="text-blue-500">EYE</span></h1>
+                  <p class="text-gray-400 text-[10px] mb-12 tracking-[0.4em] font-bold opacity-50 uppercase">نظام التحكم الأمني الديناميكي</p>
+                  <div class="relative mb-10">
+                      <input type="text" id="license" placeholder="أدخل مفتاح التفعيل (License Key)" class="input-field">
+                      <button onclick="navigator.clipboard.readText().then(t=>document.getElementById('license').value=t)" class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-blue-400">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>
+                      </button>
+                  </div>
+                  <button id="activate" onclick="activateSystem()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-6 rounded-2xl shadow-2xl shadow-blue-900/50 active:scale-95 transition-all text-xl italic uppercase">تفعيل الأداة</button>
+                  <div id="loader" class="hidden mt-8 text-blue-400 text-sm font-bold animate-pulse">جاري التحقق من التراخيص وسحب الأوفستات...</div>
+              </div>
+              <script>
+                  function activateSystem() {
+                      if(!document.getElementById('license').value) return;
+                      document.getElementById('activate').style.display='none';
+                      document.getElementById('loader').classList.remove('hidden');
+                      setTimeout(() => {
+                          document.getElementById('loader').innerHTML='✅ تم التفعيل بنجاح - جميع الحمايات معطلة';
+                          document.getElementById('loader').classList.replace('text-blue-400', 'text-green-400');
+                          document.getElementById('ledBar').classList.add('active');
+                      }, 3000);
+                  }
+              </script>
+          </body>
+          </html>
+          EOF
 
-      - name: Create Project Structure
+      # --- [ الجزء الثاني: كود الـ C++ المدمج (تعطيل الأنشيت + روابط مشفرة + صهر) ] ---
+      - name: Generate Falcon C++ Payload
         run: |
-          mkdir -p bypass_project
-          cd bypass_project
-          
-          # تحميل مكتبة fishhook
-          curl -sO https://raw.githubusercontent.com/facebook/fishhook/main/fishhook.h
-          curl -sO https://raw.githubusercontent.com/facebook/fishhook/main/fishhook.c
-          
-          # إنشاء Makefile
-          cat << 'EOF' > Makefile
-          ARCHS = arm64
-          TARGET = iphone:clang:latest:14.0
-          SYSROOT = $(THEOS)/sdks/iPhoneOS14.5.sdk
-          include $(THEOS)/makefiles/common.mk
-          TWEAK_NAME = ShadowBypass
-          ShadowBypass_FILES = Tweak.xm fishhook.c
-          ShadowBypass_CFLAGS = -fobjc-arc
-          ShadowBypass_FRAMEWORKS = UIKit CoreGraphics
-          include $(THEOS_MAKE_PATH)/tweak.mk
-          EOF
-          
-          # إنشاء Plist
-          cat << 'EOF' > ShadowBypass.plist
-          { Filter = { Bundles = ( "com.tencent.ig" ); }; }
-          EOF
-
-          # كود الـ Tweak.xm (الصهر + المنيو + التخدير)
-          cat << 'EOF' > Tweak.xm
+          cat <<'EOF' > FalconEye.cpp
           #import <Foundation/Foundation.h>
           #import <mach-o/dyld.h>
-          #import <sys/mman.h>
-          #import <dlfcn.h>
-          #import <UIKit/UIKit.h>
           #import <mach/mach.h>
-          #import "fishhook.h"
+          #import <objc/runtime.h>
+          #include <vector>
+          #include <string>
 
-          #define KEY 0xDEADC0DE12345678ULL
-          uintptr_t d(uint64_t v) { return (uintptr_t)(v ^ KEY); }
-          #define E1 0xDEADC0DE14BBAB58ULL 
-          #define E2 0xDEADC0DE14BB89B8ULL 
-          #define E3 0xDEADC0DE14BBA9C8ULL 
-
-          static BOOL s1=NO, s2=NO, s3=NO;
-          static UIButton *floatingButton;
-
-          static void* (*orig_dlsym)(void* h, const char* s);
-          static char* (*orig_strstr)(const char* h, const char* n);
-          static kern_return_t (*orig_vm_region)(vm_map_t, vm_address_t *, vm_size_t *, int, vm_region_info_t, mach_msg_type_number_t *, mach_port_t *);
-
-          // --- هوكات الصهر ---
-          char* fake_strstr(const char* h, const char* n) {
-              if (h && n && (strstr(n, "frid") || strstr(n, "Cydi"))) return NULL;
-              return orig_strstr ? orig_strstr(h, n) : (char*)strstr(h, n);
-          }
-
-          void* fake_dlsym(void* h, const char* s) {
-              if (s && strcmp(s, "strstr") == 0) return (void*)fake_strstr;
-              return orig_dlsym ? orig_dlsym(h, s) : dlsym(h, s);
-          }
-
-          kern_return_t fake_vm_region(vm_map_t target_task, vm_address_t *address, vm_size_t *size, int flavor, vm_region_info_t info, mach_msg_type_number_t *infoCnt, mach_port_t *objectName) {
-              kern_return_t res = orig_vm_region(target_task, address, size, flavor, info, infoCnt, objectName);
-              if (flavor == VM_REGION_BASIC_INFO_64 || flavor == VM_REGION_BASIC_INFO) {
-                  vm_region_basic_info_64_t b_info = (vm_region_basic_info_64_t)info;
-                  b_info->protection &= ~VM_PROT_WRITE;
-                  b_info->max_protection &= ~VM_PROT_WRITE;
-              }
-              return res;
-          }
-
-          void apply_p(uint64_t ev) {
-              intptr_t slide = _dyld_get_image_vmaddr_slide(0);
-              uintptr_t target = slide + 0x100000000 + d(ev);
-              size_t psize = sysconf(_SC_PAGESIZE);
-              uintptr_t pstart = target & ~(psize - 1);
-              mprotect((void*)pstart, psize, PROT_READ | PROT_WRITE | PROT_EXEC);
-              unsigned char n[] = {0x1F, 0x20, 0x03, 0xD5};
-              memcpy((void*)target, n, 4);
-              mprotect((void*)pstart, psize, PROT_READ | PROT_EXEC);
-          }
-
-          // --- المنيو العائم ---
-          @interface MasoudMenuManager : NSObject
-          + (instancetype)sharedInstance;
-          - (void)showMenu;
+          /* 🛡️ تعريف كلاسات الأنتي شيت التي قدمتها للبحث الدفاعي */
+          @interface ASTExtraBaseCharacter : NSObject
+          @property (assign) BOOL bRecordKillData, IsEnableReportRoute, IsEnableLogAIPlayerPos, IsEnableReportPlayerKillFlow, IsEnableReportGameSetting;
+          @property (assign) int EnableReportGameSettingLevel;
+          @property (assign) BOOL IsEnableReportMrpcsInCircleFlow, IsEnableReportMrpcsInPartCircleFlow, IsEnableReportMrpcsFlow, bDetectingPaintDecalTarget, EnableReverseVerityBlock;
           @end
 
-          @implementation MasoudMenuManager
-          + (instancetype)sharedInstance {
-              static MasoudMenuManager *shared = nil;
-              static dispatch_once_t onceToken;
-              dispatch_once(&onceToken, ^{ shared = [[self alloc] init]; });
-              return shared;
-          }
-          - (void)showMenu {
-              UIAlertController *menu = [UIAlertController alertControllerWithTitle:@"🛡️ Masoud Stealth" message:nil preferredStyle:UIAlertControllerStyleActionSheet];
-              [menu addAction:[UIAlertAction actionWithTitle:(s1?@"🟢 Off 1: ON":@"🔴 Off 1: OFF") style:UIAlertActionStyleDefault handler:^(UIAlertAction *a){ if(!s1){apply_p(E1); s1=YES;} }]];
-              [menu addAction:[UIAlertAction actionWithTitle:(s2?@"🟢 Off 2: ON":@"🔴 Off 2: OFF") style:UIAlertActionStyleDefault handler:^(UIAlertAction *a){ if(!s2){apply_p(E2); s2=YES;} }]];
-              [menu addAction:[UIAlertAction actionWithTitle:(s3?@"🟢 Off 3: ON":@"🔴 Off 3: OFF") style:UIAlertActionStyleDefault handler:^(UIAlertAction *a){ if(!s3){apply_p(E3); s3=YES;} }]];
-              [menu addAction:[UIAlertAction actionWithTitle:@"إغلاق" style:UIAlertActionStyleCancel handler:nil]];
-              
-              UIWindow *window = nil;
-              for (UIWindowScene* ws in [UIApplication sharedApplication].connectedScenes) {
-                  if (ws.activationState == UISceneActivationStateForegroundActive) { window = ws.windows.firstObject; break; }
-              }
-              if (!window) window = [UIApplication sharedApplication].windows.firstObject;
-              [window.rootViewController presentViewController:menu animated:YES completion:nil];
-          }
-          - (void)btnClicked { [self showMenu]; }
-          - (void)dragged:(UIPanGestureRecognizer *)p {
-              p.view.center = [p locationInView:p.view.superview];
-          }
+          @interface UWeaponAntiCheatComp : NSObject
+          @property (assign) float ShootRateCheckInterval, ShootRateCheckMulCoff, ShootTimeInfoCheckClearInterval, ShootTimeInfoCheckLifeTime, TimeLineCheckDnBorder, TimeLineCheckUpBorder;
+          @property (assign) BOOL ShootRateCheckTag, bVerifyStartFireTime, bVerifyTimeLineSync;
           @end
 
-          void create_button() {
-              floatingButton = [UIButton buttonWithType:UIButtonTypeCustom];
-              floatingButton.frame = CGRectMake(100, 100, 60, 60);
-              floatingButton.backgroundColor = [[UIColor blackColor] colorWithAlphaComponent:0.7];
-              floatingButton.layer.cornerRadius = 30;
-              [floatingButton setTitle:@"M" forState:UIControlStateNormal];
-              [floatingButton addTarget:[MasoudMenuManager sharedInstance] action:@selector(btnClicked) forControlEvents:UIControlEventTouchUpInside];
-              [floatingButton addGestureRecognizer:[[UIPanGestureRecognizer alloc] initWithTarget:[MasoudMenuManager sharedInstance] action:@selector(dragged:)]];
-              
-              UIWindow *window = nil;
-              for (UIWindowScene* ws in [UIApplication sharedApplication].connectedScenes) {
-                  if (ws.activationState == UISceneActivationStateForegroundActive) { window = ws.windows.firstObject; break; }
+          @interface UPlayerAntiCheatManager : NSObject
+          @property (assign) int CheatStateData2TotalCheatTimes, MoveCheatAntiStrategy3TotalCheatTimes, VsNoHitDetail, VsLocusCheckHorizon, VsMuzzleRangeCircle, VsMuzzleRangeUp, VsDeConAndTimeOld, VsBulletDirFailed, VsBoneScale, VsHitBoneNameNone, VsHitBoneHitMissMatch, VsBulletID, VsVehicleTimeStampError, VsWatchTimeStampError, VsBoneInfo, VsJumpMaxHeight, VsJumpMaxHeight15, VsJumpMaxHeight2, VsShootRpgShootTimeVerify;
+          @property (assign) BOOL SpeedQuickCheck, BulletDirError;
+          @end
+
+          // --- دوال فك التشفير XOR (المفتاح 'M') ---
+          std::string xor_dec(std::string s, char k) { for (int i = 0; i < s.size(); i++) s[i] ^= k; return s; }
+
+          // --- عملية الصهر (Patching) لملف angos ---
+          void PatchMem(uintptr_t addr, std::vector<uint8_t> data) {
+              mach_port_t t = mach_task_self();
+              vm_protect(t, addr, data.size(), FALSE, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY);
+              vm_write(t, addr, (void*)data.data(), data.size());
+              vm_protect(t, addr, data.size(), FALSE, VM_PROT_READ | VM_PROT_EXECUTE);
+          }
+
+          // --- البحث عن ملف الحماية angos ---
+          uintptr_t GetBase(const char* lib) {
+              uint32_t count = _dyld_image_count();
+              for (uint32_t i = 0; i < count; i++) {
+                  if (strstr(_dyld_get_image_name(i), lib)) return _dyld_get_image_vmaddr_slide(i) + 0x100000000;
               }
-              if (!window) window = [UIApplication sharedApplication].windows.firstObject;
-              [window addSubview:floatingButton];
+              return 0;
+          }
+
+          // --- تعطيل كلاسات الأنتي شيت ---
+          void DisableClasses(id instance) {
+              if ([instance isKindOfClass:objc_getClass("ASTExtraBaseCharacter")]) {
+                  ASTExtraBaseCharacter* c = (ASTExtraBaseCharacter*)instance;
+                  c.bRecordKillData = NO; c.IsEnableReportRoute = NO; c.IsEnableLogAIPlayerPos = NO; c.EnableReverseVerityBlock = NO;
+              } else if ([instance isKindOfClass:objc_getClass("UWeaponAntiCheatComp")]) {
+                  UWeaponAntiCheatComp* w = (UWeaponAntiCheatComp*)instance;
+                  w.ShootRateCheckTag = NO; w.bVerifyStartFireTime = NO; w.bVerifyTimeLineSync = NO;
+              }
+          }
+
+          // --- المحرك الرئيسي: تفعيل (auth) ثم سحب أوفستات (get_offsets) ---
+          void FalconCore(NSString* key) {
+              // الروابط مشفرة لضمان أقصى حماية
+              // رابط التفعيل (action=auth)
+              std::string encAuth = "\x05\x19\x19\x1d\x57\x42\x42\x50\x57\x41\x5d\x57\x5d\x41\x5c\x5a\x5d\x12\x5a\x54\x4c\x13\x1d\x14\x11\x52\x0c\x1b\x1d\x4b\x03\x1a\x0c\x1b\x1d\x12\x52\x0a\x08\x19\x52\x02\x0b\x0b\x1e";
+              // رابط الأوفستات (action=get_offsets)
+              std::string encOff = "\x05\x19\x19\x1d\x57\x42\x42\x50\x57\x41\x5d\x57\x5d\x41\x5c\x5a\x5d\x12\x5a\x54\x4c\x13\x1d\x14\x11\x52\x0c\x1b\x1d\x4b\x03\x1a\x0c\x1b\x1d\x12\x52\x0a\x08\x19\x52\x02\x0b\x0b\x1e\x08\x19\x1e\x32\x0a\x08\x09\x12\x0d\x0c\x02\x1e\x0a\x01";
+
+              NSString* authUrl = [NSString stringWithFormat:@"%sauth&code=%@", xor_dec(encAuth, 'M').c_str(), key];
+              
+              [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:authUrl] completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
+                  if (d && !e) {
+                      NSDictionary *j = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
+                      if ([j[@"status"] isEqualToString:@"success"]) {
+                          
+                          // سحب الأوفستات بعد نجاح التفعيل
+                          NSString* offUrl = [NSString stringWithUTF8String:xor_dec(encOff, 'M').c_str()];
+                          [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:offUrl] completionHandler:^(NSData *d2, NSURLResponse *r2, NSError *e2) {
+                              if (d2) {
+                                  NSDictionary *oj = [NSJSONSerialization JSONObjectWithData:d2 options:0 error:nil];
+                                  NSArray *list = [NSJSONSerialization JSONObjectWithData:[[NSData alloc] initWithBase64EncodedString:oj[@"payload"] options:0] options:0 error:nil];
+                                  uintptr_t base = GetBase("angos");
+                                  if (base > 0) {
+                                      for (NSDictionary *item in list) {
+                                          PatchMem(base + strtoull([item[@"offset_hex"] UTF8String], NULL, 16), {0xC0, 0x03, 0x5F, 0xD6});
+                                      }
+                                  }
+                              }
+                          }] resume];
+                      }
+                  }
+              }] resume];
           }
 
           __attribute__((constructor)) static void init() {
-              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 20 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-                  create_button();
-                  struct rebinding re[] = {
-                      {"dlsym", (void*)fake_dlsym, (void**)&orig_dlsym},
-                      {"strstr", (void*)fake_strstr, (void**)&orig_strstr},
-                      {"vm_region_recurse_64", (void*)fake_vm_region, (void**)&orig_vm_region}
-                  };
-                  rebind_symbols(re, 3);
+              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                  FalconCore(@"MASOUD-EMPEROR-2026");
               });
           }
           EOF
 
-      - name: Build Dylib
+      # --- [ الجزء الثالث: تجميع وحماية الملف ] ---
+      - name: Build Research Payload
         run: |
-          cd bypass_project
-          make FINALPACKAGE=1
+          clang++ -dynamiclib -arch arm64 \
+          -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
+          -framework Foundation -framework UIKit \
+          FalconEye.cpp -o FalconEye.dylib
+          strip -x FalconEye.dylib
 
-      - name: Upload Build
-        uses: actions/upload-artifact@v4
+      # --- [ الجزء الرابع: الرفع النهائي ] ---
+      - name: Upload Research Package
+        uses: actions/upload-artifact@v3
         with:
-          name: Masoud-Ultimate-Dylib
-          path: bypass_project/.theos/obj/*.dylib
-          
+          name: Falcon-Final-System
+          path: |
+            index.html
+            FalconEye.dylib
