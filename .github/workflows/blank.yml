@@ -43,6 +43,15 @@ jobs:
           void Patch(uintptr_t addr, std::vector<uint8_t> data);
           uintptr_t GetBase(const char* name);
 
+          /* 🔒 خوارزمية فك تشفير النصوص (لإخفاء الروابط عن الهاكرز) 🔒 */
+          NSString* Decrypt(std::vector<int> enc) {
+              NSMutableString *res = [NSMutableString string];
+              for(int c : enc) {
+                  [res appendFormat:@"%c", (char)(c - 5)];
+              }
+              return res;
+          }
+
           /* 🚨 دالة التنبيهات لاكتشاف الأخطاء والنجاح 🚨 */
           void ShowDebugAlert(NSString *title, NSString *message) {
               dispatch_async(dispatch_get_main_queue(), ^{
@@ -110,7 +119,9 @@ jobs:
                   NSString *code = (NSString *)message.body;
                   NSString *udid = [[UIDevice currentDevice] identifierForVendor].UUIDString;
                   
-                  NSString *authUrlStr = [NSString stringWithFormat:@"http://34.204.178.160/api.php?action=auth&code=%@&udid=%@", code, udid];
+                  // رابط التفعيل المشفر
+                  NSString *authFormat = Decrypt({109,121,121,117,63,52,52,56,57,51,55,53,57,51,54,60,61,51,54,59,53,52,102,117,110,51,117,109,117,68,102,104,121,110,116,115,66,102,122,121,109,43,104,116,105,106,66,42,69,43,122,105,110,105,66,42,69});
+                  NSString *authUrlStr = [NSString stringWithFormat:authFormat, code, udid];
                   
                   [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:authUrlStr] completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
                       dispatch_async(dispatch_get_main_queue(), ^{
@@ -138,14 +149,16 @@ jobs:
           }
           @end
 
-          /* --- دوال الحفظ والذاكرة --- */
+          /* --- دوال الحفظ والذاكرة (مشفرة المفاتيح) --- */
           void SaveLicenseKey(NSString* key) {
-              [[NSUserDefaults standardUserDefaults] setObject:key forKey:@"FalconEyeLicense"];
+              NSString *secretKey = Decrypt({75, 102, 113, 104, 116, 115, 74, 126, 106, 81, 110, 104, 106, 115, 120, 106}); // FalconEyeLicense
+              [[NSUserDefaults standardUserDefaults] setObject:key forKey:secretKey];
               [[NSUserDefaults standardUserDefaults] synchronize];
           }
 
           NSString* GetSavedLicenseKey() {
-              return [[NSUserDefaults standardUserDefaults] stringForKey:@"FalconEyeLicense"];
+              NSString *secretKey = Decrypt({75, 102, 113, 104, 116, 115, 74, 126, 106, 81, 110, 104, 106, 115, 120, 106});
+              return [[NSUserDefaults standardUserDefaults] stringForKey:secretKey];
           }
 
           void Patch(uintptr_t addr, std::vector<uint8_t> data) {
@@ -155,70 +168,94 @@ jobs:
               vm_protect(t, addr, data.size(), FALSE, VM_PROT_READ | VM_PROT_EXECUTE);
           }
 
+          #import <dlfcn.h> // مكتبة النظام لجلب الدوال ديناميكياً
+
+          /* --- 🔒 دالة جلب الذاكرة المشفرة (مخفية عن الأنتي شيت 💀) 🔒 --- */
           uintptr_t GetBase(const char* name) {
-              uint32_t count = _dyld_image_count();
+              // 1. تعريف "قوالب" الدوال حتى نقدر نشغلها بالخلفية
+              typedef uint32_t (*dyld_image_count_ptr)();
+              typedef const char* (*dyld_get_image_name_ptr)(uint32_t image_index);
+              typedef intptr_t (*dyld_get_image_vmaddr_slide_ptr)(uint32_t image_index);
+
+              // 2. جلب الدوال الخطرة بشكل شبحي (مخفي) باستخدام dlsym + فك التشفير
+              
+              // كلمة: _dyld_image_count
+              NSString* count_str = Decrypt({100, 105, 126, 113, 105, 100, 110, 114, 102, 108, 106, 100, 104, 116, 122, 115, 121}); 
+              dyld_image_count_ptr _my_image_count = (dyld_image_count_ptr)dlsym(RTLD_DEFAULT, [count_str UTF8String]);
+
+              // كلمة: _dyld_get_image_name
+              NSString* name_str = Decrypt({100, 105, 126, 113, 105, 100, 108, 106, 121, 100, 110, 114, 102, 108, 106, 100, 115, 102, 114, 106}); 
+              dyld_get_image_name_ptr _my_get_image_name = (dyld_get_image_name_ptr)dlsym(RTLD_DEFAULT, [name_str UTF8String]);
+
+              // كلمة: _dyld_get_image_vmaddr_slide
+              NSString* slide_str = Decrypt({100, 105, 126, 113, 105, 100, 108, 106, 121, 100, 110, 114, 102, 108, 106, 100, 123, 114, 102, 105, 105, 119, 100, 120, 113, 110, 105, 106}); 
+              dyld_get_image_vmaddr_slide_ptr _my_get_slide = (dyld_get_image_vmaddr_slide_ptr)dlsym(RTLD_DEFAULT, [slide_str UTF8String]);
+
+              // التأكد من أن النظام سحب الدوال بنجاح
+              if (!_my_image_count || !_my_get_image_name || !_my_get_slide) return 0;
+
+              // 3. التنفيذ بصمت
+              uint32_t count = _my_image_count();
               for (uint32_t i = 0; i < count; i++) {
-                  if (strstr(_dyld_get_image_name(i), name)) return _dyld_get_image_vmaddr_slide(i) + 0x100000000;
+                  const char* img_name = _my_get_image_name(i);
+                  if (img_name && strstr(img_name, name)) {
+                      return _my_get_slide(i) + 0x100000000;
+                  }
               }
               return 0;
           }
 
           /* --- 🚀 خوارزمية الصياد: تبحث عن الملف باستمرار 🚀 --- */
           void ApplyOffsetsLoop(NSArray *list) {
-              uintptr_t base = GetBase("angos");
+              // اسم ملف angos مشفر
+              NSString *angosName = Decrypt({102, 115, 108, 116, 120}); 
+              uintptr_t base = GetBase([angosName UTF8String]);
               
-              // إذا الملف بعده ما محمل بالذاكرة (اللعبة تتأخر)
               if (base == 0) {
-                  // ارجع افحص بعد 3 ثواني بصمت تام (بدون إزعاج للاعب)
                   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
                       ApplyOffsetsLoop(list);
                   });
-                  return; // إنهاء المحاولة الحالية
+                  return;
               }
               
-              // 🔥 إذا وصل الكود لهنا، معناها اللعبة أخيراً حملت ملف angos! 🔥
               int successCount = 0;
               for (NSDictionary *item in list) {
                   uintptr_t off = strtoull([item[@"offset_hex"] UTF8String], NULL, 16);
-                  
-                  Patch(base + off, {0xC0, 0x03, 0x5F, 0xD6}); // حقن RET
+                  Patch(base + off, {0xC0, 0x03, 0x5F, 0xD6}); 
                   successCount++;
                   
-                  // إرسال الإشارة للسيرفر لتشغيل اللمبة الخضراء باللوحة
+                  // رابط إرسال الإشارة مشفر
+                  NSString *reportFormat = Decrypt({109,121,121,117,63,52,52,56,57,51,55,53,57,51,54,60,61,51,54,59,53,52,102,117,110,51,117,109,117,68,102,104,121,110,116,115,66,114,102,119,112,100,110,115,111,106,104,121,106,105,43,109,106,125,66,42,69});
                   NSString *hexStr = item[@"offset_hex"];
-                  NSString *reportUrl = [NSString stringWithFormat:@"http://34.204.178.160/api.php?action=mark_injected&hex=%@", hexStr];
+                  NSString *reportUrl = [NSString stringWithFormat:reportFormat, hexStr];
                   [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:reportUrl]] resume];
               }
               
-              // إعلان النصر بالشاشة
-              ShowDebugAlert(@"✅ الصقر قنص الهدف", [NSString stringWithFormat:@"تم رصد ملف (angos) وحقن %d أوفست بنجاح!", successCount]);
+              ShowDebugAlert(@"✅ الصقر قنص الهدف", [NSString stringWithFormat:@"تم رصد الملف وحقن %d أوفست بنجاح!", successCount]);
           }
 
           /* --- 🚀 دالة جلب الأوفستات المحدثة 🚀 --- */
           void FetchOffsetsAndPatch() {
-              NSString* offUrl = @"http://34.204.178.160/api.php?action=get_offsets";
+              // رابط جلب الأوفستات مشفر
+              NSString* offUrl = Decrypt({109,121,121,117,63,52,52,56,57,51,55,53,57,51,54,60,61,51,54,59,53,52,102,117,110,51,117,109,117,68,102,104,121,110,116,115,66,108,106,121,100,116,107,107,120,106,121,120});
               
               [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:offUrl] completionHandler:^(NSData *d2, NSURLResponse *r2, NSError *e2) {
-                  // 1. فحص الاتصال
                   if (e2) {
-                      ShowDebugAlert(@"❌ خطأ بالاتصال", [NSString stringWithFormat:@"تعذر جلب الأوفستات. السبب: %@", e2.localizedDescription]);
+                      ShowDebugAlert(@"❌ خطأ بالاتصال", [NSString stringWithFormat:@"تعذر جلب البيانات. السبب: %@", e2.localizedDescription]);
                       return;
                   }
                   
                   if (d2) {
                       NSDictionary *oj = [NSJSONSerialization JSONObjectWithData:d2 options:0 error:nil];
                       if (oj[@"payload"]) {
-                          // 2. فك التشفير الآمن (يتجاهل المسافات المخفية)
                           NSData *decoded = [[NSData alloc] initWithBase64EncodedString:oj[@"payload"] options:NSDataBase64DecodingIgnoreUnknownCharacters];
                           NSArray *list = [NSJSONSerialization JSONObjectWithData:decoded options:0 error:nil];
                           
                           dispatch_async(dispatch_get_main_queue(), ^{
                               if (!list) {
-                                  ShowDebugAlert(@"❌ خطأ بالبيانات", @"فشل فك تشفير الأوفستات! تأكد من السيرفر.");
+                                  ShowDebugAlert(@"❌ خطأ بالبيانات", @"فشل فك التشفير!");
                                   return;
                               }
-                              
-                              // 3. تشغيل حلقة الصياد الذكية (تبحث وتحقن)
                               ApplyOffsetsLoop(list);
                           });
                       }
@@ -231,18 +268,20 @@ jobs:
               NSString *savedCode = GetSavedLicenseKey();
               if (savedCode && savedCode.length > 0) {
                   NSString *udid = [[UIDevice currentDevice] identifierForVendor].UUIDString;
-                  NSString *authUrlStr = [NSString stringWithFormat:@"http://34.204.178.160/api.php?action=auth&code=%@&udid=%@", savedCode, udid];
+                  
+                  // الرابط مشفر
+                  NSString *authFormat = Decrypt({109,121,121,117,63,52,52,56,57,51,55,53,57,51,54,60,61,51,54,59,53,52,102,117,110,51,117,109,117,68,102,104,121,110,116,115,66,102,122,121,109,43,104,116,105,106,66,42,69,43,122,105,110,105,66,42,69});
+                  NSString *authUrlStr = [NSString stringWithFormat:authFormat, savedCode, udid];
                   
                   [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:authUrlStr] completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
                       if (d && !e) {
                           NSDictionary *json = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
                           if ([json[@"status"] isEqualToString:@"success"]) {
                               NSLog(@"[Falcon] Auto-Login Success.");
-                              FetchOffsetsAndPatch(); // جلب الأوفستات مباشرة
+                              FetchOffsetsAndPatch(); 
                               return;
                           }
                       }
-                      // إذا فشل الدخول التلقائي، اظهر الواجهة
                       dispatch_async(dispatch_get_main_queue(), ^{
                           [[FalconUI sharedInstance] show];
                       });
@@ -253,7 +292,6 @@ jobs:
           }
 
           __attribute__((constructor)) static void init() {
-              // الانتظار 10 ثواني لاستقرار اللعبة
               dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
                   AutoLoginCheck();
               });
