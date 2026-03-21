@@ -1,7 +1,3 @@
-# [FALCON EYE - THE SOVEREIGN AGENT FINAL BUILD]
-# المسار: .github/workflows/wsam.yml
-# التحديث: ربط حقيقي بالسيرفر (يختفي عند النجاح، يظهر رسالة عند الفشل، يحفظ الدخول التلقائي)
-
 name: Falcon Eye - Ultimate Integrated Engine
 
 on:
@@ -17,7 +13,6 @@ jobs:
       - name: Checkout Source
         uses: actions/checkout@v4
 
-      # --- [ الجزء الأول: كود الـ Objective-C++ المدمج والشامل ] ---
       - name: Generate Falcon Source
         run: |
           cat <<'EOF' > FalconEye.mm
@@ -39,12 +34,10 @@ jobs:
           @property (assign) BOOL ShootRateCheckTag, bVerifyStartFireTime, bVerifyTimeLineSync;
           @end
 
-          /* --- إعلانات الدوال قبل استخدامها --- */
           void FetchOffsetsAndPatch(void);
           void SaveLicenseKey(NSString* key);
           NSString* GetSavedLicenseKey(void);
 
-          /* 🛡️ كلاس محرك الواجهة (Falcon UI Engine) */
           @interface FalconUI : NSObject <WKScriptMessageHandler>
           @property (nonatomic, strong) UIWindow *window;
           @property (nonatomic, strong) WKWebView *webView;
@@ -63,20 +56,19 @@ jobs:
 
           - (void)show {
               dispatch_async(dispatch_get_main_queue(), ^{
-                  if (self.window) return; // إذا كانت ظاهرة لا تعيد رسمها
+                  if (self.window) return; 
                   
                   self.window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
                   self.window.windowLevel = UIWindowLevelAlert + 10000;
                   self.window.backgroundColor = [UIColor clearColor];
                   
                   WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
-                  [config.userContentController addScriptMessageHandler:self name:@"falconAuth"]; // استقبال الأوامر من HTML
+                  [config.userContentController addScriptMessageHandler:self name:@"falconAuth"]; 
                   
                   self.webView = [[WKWebView alloc] initWithFrame:self.window.bounds configuration:config];
                   self.webView.backgroundColor = [UIColor clearColor];
                   self.webView.opaque = NO;
                   
-                  // واجهة HTML (معدلة لإرسال الكود للـ C++)
                   NSString *html = @"<!DOCTYPE html><html lang='ar' dir='rtl'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no'><script src='https://cdn.tailwindcss.com'></script><style>body { background: transparent; height: 100vh; display: flex; justify-content: center; align-items: center; margin: 0; font-family: sans-serif; }.glass { background: rgba(15, 23, 42, 0.96); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 35px; width: 360px; padding: 45px; text-align: center; box-shadow: 0 30px 60px rgba(0,0,0,0.7); }.input { background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; padding: 18px; width: 100%; color: white; text-align: center; outline: none; transition: 0.3s; font-weight: bold; }.status-led { position: fixed; top: 30px; left: 50%; transform: translateX(-50%); background: rgba(255, 255, 255, 0.05); padding: 10px 25px; border-radius: 50px; display: none; align-items: center; gap: 10px; border: 1px solid rgba(255,255,255,0.2); }.bulb { width: 12px; height: 12px; background: #4ade80; border-radius: 50%; box-shadow: 0 0 15px #4ade80; }</style></head><body><div id='led' class='status-led'><div class='bulb'></div><span class='text-white text-xs font-bold'>النظام: متصل</span></div><div class='glass'><h1 class='text-5xl font-black text-white mb-2 italic tracking-tighter'>FALCON <span class='text-blue-500'>EYE</span></h1><p class='text-gray-400 text-[9px] mb-10 uppercase tracking-widest opacity-60 font-bold'>Dynamic Security System</p><input type='text' id='k' placeholder='أدخل مفتاح التفعيل' class='input mb-6'><button onclick='activate()' id='btn' class='w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-5 rounded-2xl shadow-xl active:scale-95 transition-all text-xl'>تفعيل الأداة</button><div id='msg' class='mt-6 text-sm font-bold hidden'></div></div><script>function activate(){ var code = document.getElementById('k').value; if(!code) return; document.getElementById('btn').style.opacity='0.5'; document.getElementById('btn').disabled=true; document.getElementById('msg').innerHTML='جاري التحقق من السيرفر...'; document.getElementById('msg').className='mt-6 text-blue-400 text-sm font-bold animate-pulse'; document.getElementById('msg').classList.remove('hidden'); window.webkit.messageHandlers.falconAuth.postMessage(code); } function showResult(isSuccess, message){ document.getElementById('btn').style.opacity='1'; document.getElementById('btn').disabled=false; document.getElementById('msg').innerHTML=message; document.getElementById('msg').className = isSuccess ? 'mt-6 text-green-400 text-sm font-bold' : 'mt-6 text-red-500 text-sm font-bold'; if(isSuccess) document.getElementById('led').style.display='flex'; }</script></body></html>";
                   
                   [self.webView loadHTMLString:html baseURL:nil];
@@ -94,13 +86,11 @@ jobs:
               });
           }
 
-          // استقبال الكود من واجهة HTML وإرساله لسيرفر PHP
           - (void)userContentController:(WKUserContentController *)userContentController didReceiveScriptMessage:(WKScriptMessage *)message {
               if ([message.name isEqualToString:@"falconAuth"]) {
                   NSString *code = (NSString *)message.body;
                   NSString *udid = [[UIDevice currentDevice] identifierForVendor].UUIDString;
                   
-                  // رابط التفعيل بناءً على سكربت الـ PHP الخاص بك
                   NSString *authUrlStr = [NSString stringWithFormat:@"http://34.204.178.160/api.php?action=auth&code=%@&udid=%@", code, udid];
                   
                   [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:authUrlStr] completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
@@ -112,7 +102,6 @@ jobs:
                           
                           NSDictionary *json = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
                           if ([json[@"status"] isEqualToString:@"success"]) {
-                              // إذا التفعيل ناجح: حفظ الكود + إخفاء الواجهة + سحب الأوفستات
                               [self.webView evaluateJavaScript:[NSString stringWithFormat:@"showResult(true, '✅ %@');", json[@"message"]] completionHandler:nil];
                               SaveLicenseKey(code);
                               
@@ -121,7 +110,6 @@ jobs:
                                   FetchOffsetsAndPatch();
                               });
                           } else {
-                              // إذا التفعيل فشل: إظهار رسالة السيرفر الحمراء
                               NSString *errorMsg = json[@"message"] ? json[@"message"] : @"❌ كود غير صالح أو منتهي";
                               [self.webView evaluateJavaScript:[NSString stringWithFormat:@"showResult(false, '%@');", errorMsg] completionHandler:nil];
                           }
@@ -131,7 +119,6 @@ jobs:
           }
           @end
 
-          // --- حفظ وقراءة الكود من الـ Keychain (NSUserDefaults) ---
           void SaveLicenseKey(NSString* key) {
               [[NSUserDefaults standardUserDefaults] setObject:key forKey:@"FalconEyeLicense"];
               [[NSUserDefaults standardUserDefaults] synchronize];
@@ -141,7 +128,6 @@ jobs:
               return [[NSUserDefaults standardUserDefaults] stringForKey:@"FalconEyeLicense"];
           }
 
-          // --- عملية الصهر (Patching) ---
           void Patch(uintptr_t addr, std::vector<uint8_t> data) {
               mach_port_t t = mach_task_self();
               vm_protect(t, addr, data.size(), FALSE, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY);
@@ -149,7 +135,6 @@ jobs:
               vm_protect(t, addr, data.size(), FALSE, VM_PROT_READ | VM_PROT_EXECUTE);
           }
 
-          // --- البحث عن ملف angos بالذاكرة ---
           uintptr_t GetBase(const char* name) {
               uint32_t count = _dyld_image_count();
               for (uint32_t i = 0; i < count; i++) {
@@ -158,7 +143,6 @@ jobs:
               return 0;
           }
 
-          // --- سحب الأوفستات وفك تشفير Base64 ---
           void FetchOffsetsAndPatch() {
               NSString* offUrl = @"http://34.204.178.160/api.php?action=get_offsets";
               [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:offUrl] completionHandler:^(NSData *d2, NSURLResponse *r2, NSError *e2) {
@@ -172,7 +156,14 @@ jobs:
                           if (base > 0 && list) {
                               for (NSDictionary *item in list) {
                                   uintptr_t off = strtoull([item[@"offset_hex"] UTF8String], NULL, 16);
+                                  
+                                  // 1. حقن الذاكرة
                                   Patch(base + off, {0xC0, 0x03, 0x5F, 0xD6});
+                                  
+                                  // 2. 💡 إرسال إشارة نجاح الحقن للسيرفر لتشغيل اللمبة الخضراء
+                                  NSString *hexStr = item[@"offset_hex"];
+                                  NSString *reportUrl = [NSString stringWithFormat:@"http://34.204.178.160/api.php?action=mark_injected&hex=%@", hexStr];
+                                  [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:reportUrl]] resume];
                               }
                               NSLog(@"[Falcon] Safely patched %lu offsets from Base64.", (unsigned long)[list count]);
                           }
@@ -181,11 +172,9 @@ jobs:
               }] resume];
           }
 
-          // --- المحرك الرئيسي التلقائي (Auto-Login) ---
           void AutoLoginCheck() {
               NSString *savedCode = GetSavedLicenseKey();
               if (savedCode && savedCode.length > 0) {
-                  // محاولة تسجيل الدخول الصامت
                   NSString *udid = [[UIDevice currentDevice] identifierForVendor].UUIDString;
                   NSString *authUrlStr = [NSString stringWithFormat:@"http://34.204.178.160/api.php?action=auth&code=%@&udid=%@", savedCode, udid];
                   
@@ -193,31 +182,26 @@ jobs:
                       if (d && !e) {
                           NSDictionary *json = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
                           if ([json[@"status"] isEqualToString:@"success"]) {
-                              // تسجيل دخول صامت ناجح: لا تظهر الواجهة، فقط اسحب الأوفستات
                               NSLog(@"[Falcon] Auto-Login Success.");
                               FetchOffsetsAndPatch();
                               return;
                           }
                       }
-                      // إذا فشل (الكود انتهى أو غير جهاز): أظهر الواجهة ليُدخل الكود من جديد
                       NSLog(@"[Falcon] Auto-Login Failed, showing UI.");
                       [[FalconUI sharedInstance] show];
                   }] resume];
               } else {
-                  // لا يوجد كود محفوظ: أظهر الواجهة
                   [[FalconUI sharedInstance] show];
               }
           }
 
           __attribute__((constructor)) static void init() {
-              // انتظر 10 ثواني لتستقر اللعبة ثم افحص تسجيل الدخول
               dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
                   AutoLoginCheck();
               });
           }
           EOF
 
-      # --- [ الجزء الثاني: تجميع الملف (Objective-C++) ] ---
       - name: Build Research Payload
         run: |
           clang++ -dynamiclib -arch arm64 -x objective-c++ \
@@ -228,9 +212,9 @@ jobs:
             strip -x FalconEye.dylib
           fi
 
-      # --- [ الجزء الثالث: الرفع النهائي ] ---
       - name: Upload Research Package
         uses: actions/upload-artifact@v4
         with:
           name: Falcon-Integrated-System
           path: FalconEye.dylib
+          
