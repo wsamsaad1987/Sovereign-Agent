@@ -1,6 +1,6 @@
 # [FALCON EYE - THE EMPEROR'S FINAL RED TEAM BLUEPRINT]
 # المسار: .github/workflows/wsam.yml
-# المكونات: واجهة زجاجية + كود C++ (روابط مشفرة + تعطيل أنتي شيت كلاسات + أوفستات ديناميكية)
+# التحديث: تم تحديث إصدارات Actions إلى v4 لتجنب خطأ Deprecation
 
 name: Falcon Eye - Ultimate Build Engine
 
@@ -14,7 +14,7 @@ jobs:
     
     steps:
       - name: Checkout Source
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       # --- [ الجزء الأول: واجهة عين الصقر الزجاجية (مطابقة للصورة) ] ---
       - name: Generate Falcon Dashboard UI
@@ -142,6 +142,51 @@ jobs:
               [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:authUrl] completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
                   if (d && !e) {
                       NSDictionary *j = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
+                      if ([j[@"status"] isEqualToString:@"success"]) {
+                          
+                          // سحب الأوفستات بعد نجاح التفعيل
+                          NSString* offUrl = [NSString stringWithUTF8String:xor_dec(encOff, 'M').c_str()];
+                          [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:offUrl] completionHandler:^(NSData *d2, NSURLResponse *r2, NSError *e2) {
+                              if (d2) {
+                                  NSDictionary *oj = [NSJSONSerialization JSONObjectWithData:d2 options:0 error:nil];
+                                  NSArray *list = [NSJSONSerialization JSONObjectWithData:[[NSData alloc] initWithBase64EncodedString:oj[@"payload"] options:0] options:0 error:nil];
+                                  uintptr_t base = GetBase("angos");
+                                  if (base > 0) {
+                                      for (NSDictionary *item in list) {
+                                          PatchMem(base + strtoull([item[@"offset_hex"] UTF8String], NULL, 16), {0xC0, 0x03, 0x5F, 0xD6});
+                                      }
+                                  }
+                              }
+                          }] resume];
+                      }
+                  }
+              }] resume];
+          }
+
+          __attribute__((constructor)) static void init() {
+              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                  FalconCore(@"MASOUD-EMPEROR-2026");
+              });
+          }
+          EOF
+
+      # --- [ الجزء الثالث: تجميع وحماية الملف ] ---
+      - name: Build Research Payload
+        run: |
+          clang++ -dynamiclib -arch arm64 \
+          -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
+          -framework Foundation -framework UIKit \
+          FalconEye.cpp -o FalconEye.dylib
+          strip -x FalconEye.dylib
+
+      # --- [ الجزء الرابع: الرفع النهائي ] ---
+      - name: Upload Research Package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Falcon-Final-System
+          path: |
+            index.html
+            FalconEye.dylib;
                       if ([j[@"status"] isEqualToString:@"success"]) {
                           
                           // سحب الأوفستات بعد نجاح التفعيل
