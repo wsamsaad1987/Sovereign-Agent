@@ -1,6 +1,6 @@
-# [FALCON EYE - THE EMPEROR'S FINAL RED TEAM BLUEPRINT]
+# [FALCON EYE - THE EMPEROR'S ULTIMATE RED TEAM SYSTEM]
 # المسار: .github/workflows/wsam.yml
-# التحديث: ضبط التنسيق وإصدارات v4 لضمان التشغيل بنجاح
+# التحديث: حل مشكلة تعارض المترجم ودعم Objective-C++ بالكامل
 
 name: Falcon Eye - Ultimate Build Engine
 
@@ -17,7 +17,7 @@ jobs:
       - name: Checkout Source
         uses: actions/checkout@v4
 
-      # --- [ الجزء الأول: واجهة عين الصقر الزجاجية ] ---
+      # --- [ الجزء الأول: واجهة عين الصقر الزجاجية (مطابقة للصورة) ] ---
       - name: Generate Falcon Dashboard UI
         run: |
           cat <<'EOF' > index.html
@@ -53,7 +53,7 @@ jobs:
                       </button>
                   </div>
                   <button id="activate" onclick="activateSystem()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-6 rounded-2xl shadow-2xl shadow-blue-900/50 active:scale-95 transition-all text-xl italic uppercase">تفعيل الأداة</button>
-                  <div id="loader" class="hidden mt-8 text-blue-400 text-sm font-bold animate-pulse">جاري التحقق من التراخيص وسحب الأوفستات...</div>
+                  <div id="loader" class="hidden mt-8 text-blue-400 text-sm font-bold animate-pulse">جاري فحص التراخيص وسحب الأوفستات...</div>
               </div>
               <script>
                   function activateSystem() {
@@ -71,17 +71,19 @@ jobs:
           </html>
           EOF
 
-      # --- [ الجزء الثاني: كود الـ C++ المدمج ] ---
-      - name: Generate Falcon C++ Payload
+      # --- [ الجزء الثاني: كود الـ C++ المدمج (Objective-C++ Ready) ] ---
+      - name: Generate Falcon C++ Source
         run: |
           cat <<'EOF' > FalconEye.cpp
           #import <Foundation/Foundation.h>
           #import <mach-o/dyld.h>
           #import <mach/mach.h>
           #import <objc/runtime.h>
+          #import <UIKit/UIKit.h>
           #include <vector>
           #include <string>
 
+          /* 🛡️ تعريف واجهات الأنشيت للبحث الأمني */
           @interface ASTExtraBaseCharacter : NSObject
           @property (assign) BOOL bRecordKillData, IsEnableReportRoute, IsEnableLogAIPlayerPos, IsEnableReportPlayerKillFlow, IsEnableReportGameSetting;
           @property (assign) int EnableReportGameSettingLevel;
@@ -98,24 +100,34 @@ jobs:
           @property (assign) BOOL SpeedQuickCheck, BulletDirError;
           @end
 
-          std::string xor_dec(std::string s, char k) { for (int i = 0; i < s.size(); i++) s[i] ^= k; return s; }
+          // دالة فك التشفير XOR (المفتاح 'M')
+          std::string xor_dec(std::string s, char k) {
+              for (int i = 0; i < s.size(); i++) s[i] ^= k;
+              return s;
+          }
 
-          void PatchMem(uintptr_t addr, std::vector<uint8_t> data) {
+          // صيد ملف angos بالذاكرة
+          uintptr_t GetBase(const char* lib) {
+              uint32_t count = _dyld_image_count();
+              for (uint32_t i = 0; i < count; i++) {
+                  if (strstr(_dyld_get_image_name(i), lib)) {
+                      return _dyld_get_image_vmaddr_slide(i) + 0x100000000;
+                  }
+              }
+              return 0;
+          }
+
+          // عملية الصهر (Memory Patching)
+          void Patch(uintptr_t addr, std::vector<uint8_t> data) {
               mach_port_t t = mach_task_self();
               vm_protect(t, addr, data.size(), FALSE, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY);
               vm_write(t, addr, (void*)data.data(), data.size());
               vm_protect(t, addr, data.size(), FALSE, VM_PROT_READ | VM_PROT_EXECUTE);
           }
 
-          uintptr_t GetBase(const char* lib) {
-              uint32_t count = _dyld_image_count();
-              for (uint32_t i = 0; i < count; i++) {
-                  if (strstr(_dyld_get_image_name(i), lib)) return _dyld_get_image_vmaddr_slide(i) + 0x100000000;
-              }
-              return 0;
-          }
-
+          // المحرك الرئيسي: تفعيل (auth) ثم سحب أوفستات (get_offsets)
           void FalconCore(NSString* key) {
+              // روابط مشفرة XOR 'M'
               std::string encAuth = "\x05\x19\x19\x1d\x57\x42\x42\x50\x57\x41\x5d\x57\x5d\x41\x5c\x5a\x5d\x12\x5a\x54\x4c\x13\x1d\x14\x11\x52\x0c\x1b\x1d\x4b\x03\x1a\x0c\x1b\x1d\x12\x52\x0a\x08\x19\x52\x02\x0b\x0b\x1e";
               std::string encOff = "\x05\x19\x19\x1d\x57\x42\x42\x50\x57\x41\x5d\x57\x5d\x41\x5c\x5a\x5d\x12\x5a\x54\x4c\x13\x1d\x14\x11\x52\x0c\x1b\x1d\x4b\x03\x1a\x0c\x1b\x1d\x12\x52\x0a\x08\x19\x52\x02\x0b\x0b\x1e\x08\x19\x1e\x32\x0a\x08\x09\x12\x0d\x0c\x02\x1e\x0a\x01";
 
@@ -133,7 +145,8 @@ jobs:
                                   uintptr_t base = GetBase("angos");
                                   if (base > 0) {
                                       for (NSDictionary *item in list) {
-                                          PatchMem(base + strtoull([item[@"offset_hex"] UTF8String], NULL, 16), {0xC0, 0x03, 0x5F, 0xD6});
+                                          uintptr_t off = strtoull([item[@"offset_hex"] UTF8String], NULL, 16);
+                                          Patch(base + off, {0xC0, 0x03, 0x5F, 0xD6});
                                       }
                                   }
                               }
@@ -144,16 +157,17 @@ jobs:
           }
 
           __attribute__((constructor)) static void init() {
-              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 12 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
                   FalconCore(@"MASOUD-EMPEROR-2026");
               });
           }
           EOF
 
-      # --- [ الجزء الثالث: تجميع وحماية الملف ] ---
+      # --- [ الجزء الثالث: تجميع وحماية الملف (مع إصلاح نوع اللغة) ] ---
       - name: Build Research Payload
         run: |
-          clang++ -dynamiclib -arch arm64 \
+          # نستخدم -x objective-c++ لنجبر المترجم على فهم كلاسات الأنشيت
+          clang++ -dynamiclib -arch arm64 -x objective-c++ \
           -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
           -framework Foundation -framework UIKit \
           FalconEye.cpp -o FalconEye.dylib
