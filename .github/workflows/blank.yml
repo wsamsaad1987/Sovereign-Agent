@@ -29,11 +29,10 @@ jobs:
 
           /* ==========================================
              🛡️ CRYZER ANTI-CHEAT STRUCTURES
-             دمج جميع السترنقات المطلوبة للتزييف
              ========================================== */
           @interface ASTExtraBaseCharacter : NSObject
           @property (assign) BOOL bRecordKillData, IsEnableReportRoute, IsEnableLogAIPlayerPos, IsEnableReportPlayerKillFlow;
-          @property (assign) BOOL IsEnableReportGameSetting, bDetectingPaintDecalTarget, EnableReverseVerityBlock;
+          @property (assign) BOOL IsEnableReportGameSetting, EnableReverseVerityBlock, bDetectingPaintDecalTarget;
           @property (assign) BOOL IsEnableReportMrpcsInCircleFlow, IsEnableReportMrpcsInPartCircleFlow, IsEnableReportMrpcsFlow;
           @property (assign) int EnableReportGameSettingLevel;
           @end
@@ -59,136 +58,127 @@ jobs:
           @end
 
           /* ==========================================
-             🦅 FALCON CORE ENGINE
+             🦅 FALCON CORE ENGINE - C2 & UI SYSTEM
              ========================================== */
           void FetchDataFromServer(void);
           void SaveLicenseKey(NSString* key);
           NSString* GetSavedLicenseKey(void);
           uintptr_t GetBase(const char* name);
           void Patch(uintptr_t addr, std::vector<uint8_t> data);
-          void ApplyCryzerSpoofing(void);
+          void ProcessCryzerHooks(void);
 
           NSString *apiUrlBase = @"http://34.204.178.160/api.php";
 
-          @interface FalconUI : NSObject <WKScriptMessageHandler>
-          @property (nonatomic, strong) UIWindow *window;
+          // ==========================================
+          // 🔒 شاشة القفل وتجميد اللعبة (Force Lock)
+          // ==========================================
+          @interface FalconAuthViewController : UIViewController <WKScriptMessageHandler>
           @property (nonatomic, strong) WKWebView *webView;
-          + (instancetype)sharedInstance;
-          - (void)show;
-          - (void)hide;
           @end
 
-          @implementation FalconUI
-          + (instancetype)sharedInstance {
-              static FalconUI *shared = nil;
-              static dispatch_once_t onceToken;
-              dispatch_once(&onceToken, ^{ shared = [[FalconUI alloc] init]; });
-              return shared;
+          @implementation FalconAuthViewController
+          - (void)viewDidLoad {
+              [super viewDidLoad];
+              
+              // خلفية سوداء تعزل اللعبة تماماً
+              self.view.backgroundColor = [UIColor colorWithWhite:0 alpha:0.85];
+              
+              WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
+              [config.userContentController addScriptMessageHandler:self name:@"falconAuth"];
+              
+              self.webView = [[WKWebView alloc] initWithFrame:self.view.bounds configuration:config];
+              self.webView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+              self.webView.backgroundColor = [UIColor clearColor];
+              self.webView.opaque = NO;
+              
+              // 🚫 منع تحريك الشاشة (Scrolling) أو الزوم
+              self.webView.scrollView.scrollEnabled = NO;
+              self.webView.scrollView.bounces = NO;
+              self.webView.scrollView.pinchGestureRecognizer.enabled = NO;
+              
+              [self.view addSubview:self.webView];
+              
+              NSString *html = @"<!DOCTYPE html><html lang='ar' dir='rtl'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no'><script src='https://cdn.tailwindcss.com'></script><style>body { background: transparent; margin: 0; font-family: sans-serif; overflow: hidden; height: 100vh; display: flex; justify-content: center; align-items: center; touch-action: none; user-select: none; } .glass { background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(30px); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 20px; padding: 25px; display: flex; flex-direction: row; align-items: center; gap: 20px; width: 480px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8); }</style></head><body><div class='glass'><div class='flex-1 text-right'><h1 class='text-4xl font-black text-white italic tracking-tighter'>FALCON</h1><h2 class='text-2xl font-black text-blue-500 italic tracking-tighter'>EYE</h2><p class='text-[9px] text-gray-500 uppercase tracking-widest font-bold mt-2'>Dynamic Security</p></div><div class='flex-[2] flex flex-col gap-3'><div class='relative'><input type='text' id='k' placeholder='أدخل مفتاح التفعيل' class='w-full bg-black/60 border border-white/10 rounded-xl p-3.5 text-white text-center outline-none focus:border-blue-500 transition-all font-mono font-bold text-sm tracking-widest'><button onclick='pasteKey()' class='absolute left-2 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg text-[10px] text-blue-400 font-bold uppercase tracking-wider transition-all'>لصق</button></div><button onclick='activate()' id='btn' class='w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-3.5 rounded-xl shadow-lg active:scale-95 transition-all text-sm uppercase tracking-widest'>دخول للنظام</button><div id='msg' class='text-xs font-bold hidden text-center mt-1'></div></div></div><script>function pasteKey(){ window.webkit.messageHandlers.falconAuth.postMessage({action:'paste'}); } function setKey(val){ document.getElementById('k').value = val; } function activate(){ var code = document.getElementById('k').value.trim(); if(!code) return; document.getElementById('btn').disabled=true; document.getElementById('btn').style.opacity='0.5'; document.getElementById('msg').innerHTML='جاري المصادقة...'; document.getElementById('msg').className='text-blue-400 block animate-pulse'; window.webkit.messageHandlers.falconAuth.postMessage({action:'auth', code: code}); } function showResult(isSuccess, message){ document.getElementById('btn').disabled=false; document.getElementById('btn').style.opacity='1'; document.getElementById('msg').innerHTML=message; document.getElementById('msg').className = isSuccess ? 'text-green-400 block' : 'text-red-500 block'; }</script></body></html>";
+              
+              [self.webView loadHTMLString:html baseURL:nil];
           }
 
-          - (void)show {
-              dispatch_async(dispatch_get_main_queue(), ^{
-                  if (self.window) return; 
-                  // 🔒 تجميد اللعبة: نافذة سوداء شفافة تمنع اللمس
-                  self.window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
-                  self.window.windowLevel = UIWindowLevelAlert + 10000;
-                  self.window.backgroundColor = [UIColor colorWithWhite:0 alpha:0.8]; 
-                  self.window.userInteractionEnabled = YES;
-                  
-                  WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
-                  [config.userContentController addScriptMessageHandler:self name:@"falconAuth"]; 
-                  
-                  // 📏 لوكن عرضي صغير (Horizontal Compact UI)
-                  CGFloat w = 460; CGFloat h = 170;
-                  self.webView = [[WKWebView alloc] initWithFrame:CGRectMake(0, 0, w, h) configuration:config];
-                  self.webView.center = self.window.center;
-                  self.webView.layer.cornerRadius = 25;
-                  self.webView.clipsToBounds = YES;
-                  self.webView.backgroundColor = [UIColor clearColor];
-                  self.webView.opaque = NO;
-                  
-                  NSString *html = @"<!DOCTYPE html><html lang='ar' dir='rtl'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><script src='https://cdn.tailwindcss.com'></script><style>body { background: transparent; overflow: hidden; }.glass { background: rgba(15, 23, 42, 0.98); backdrop-filter: blur(25px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 25px; padding: 15px; display: flex; flex-direction: row; align-items: center; gap: 20px; height: 150px; }</style></head><body><div class='glass'><div class='flex-1'><h1 class='text-3xl font-black text-white italic tracking-tighter'>FALCON <span class='text-blue-500'>EYE</span></h1><p class='text-[8px] text-gray-500 uppercase tracking-widest font-bold mt-1'>Dynamic Security</p></div><div class='flex-[2] flex flex-col gap-2'><div class='relative'><input type='text' id='k' placeholder='مفتاح التفعيل' class='w-full bg-black/50 border border-white/10 rounded-xl p-2.5 text-white text-center outline-none focus:border-blue-500 transition-all font-bold text-xs'><button onclick='pasteKey()' class='absolute left-2 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 p-1.5 rounded-lg text-[9px] text-blue-400 font-bold'>PASTE</button></div><button onclick='activate()' id='btn' class='w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-2.5 rounded-xl shadow-lg active:scale-95 transition-all text-sm'>تفعيل</button><div id='msg' class='text-[9px] font-bold hidden text-center'></div></div></div><script>function pasteKey(){ window.webkit.messageHandlers.falconAuth.postMessage({action:'paste'}); } function setKey(val){ document.getElementById('k').value = val; } function activate(){ var code = document.getElementById('k').value; if(!code) return; document.getElementById('btn').disabled=true; document.getElementById('msg').innerHTML='جاري التحقق...'; document.getElementById('msg').className='text-blue-400 block animate-pulse'; window.webkit.messageHandlers.falconAuth.postMessage({action:'auth', code: code}); } function showResult(isSuccess, message){ document.getElementById('btn').disabled=false; document.getElementById('msg').innerHTML=message; document.getElementById('msg').className = isSuccess ? 'text-green-400 block' : 'text-red-500 block'; }</script></body></html>";
-                  
-                  [self.webView loadHTMLString:html baseURL:nil];
-                  [self.window addSubview:self.webView];
-                  [self.window makeKeyAndVisible];
-              });
+          // قفل اتجاه الشاشة بالعرض فقط
+          - (UIInterfaceOrientationMask)supportedInterfaceOrientations {
+              return UIInterfaceOrientationMaskLandscape;
           }
 
           - (void)userContentController:(WKUserContentController *)userContentController didReceiveScriptMessage:(WKScriptMessage *)message {
-              NSDictionary *body = (NSDictionary *)message.body;
-              NSString *action = body[@"action"];
-              if ([action isEqualToString:@"paste"]) {
-                  NSString *clipboard = [UIPasteboard generalPasteboard].string;
-                  if (clipboard) [self.webView evaluateJavaScript:[NSString stringWithFormat:@"setKey('%@')", clipboard] completionHandler:nil];
-              } else if ([action isEqualToString:@"auth"]) {
-                  NSString *code = body[@"code"];
-                  NSString *udid = [[UIDevice currentDevice] identifierForVendor].UUIDString;
-                  // 🔗 الرابط 1: المصادقة
-                  NSString *url = [NSString stringWithFormat:@"%@?action=auth&code=%@&udid=%@", apiUrlBase, code, udid];
-                  [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:url] completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
+              NSDictionary *data = (NSDictionary *)message.body;
+              
+              if ([data[@"action"] isEqualToString:@"paste"]) {
+                  NSString *p = [UIPasteboard generalPasteboard].string;
+                  // فلترة المسافات عند اللصق
+                  if (p) {
+                      p = [p stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+                      [self.webView evaluateJavaScript:[NSString stringWithFormat:@"setKey('%@')", p] completionHandler:nil];
+                  }
+              } else if ([data[@"action"] isEqualToString:@"auth"]) {
+                  // تنظيف الكود من أي مسافات مخفية تسبب خطأ بالسيرفر
+                  NSString *c = [data[@"code"] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+                  NSString *u = [[UIDevice currentDevice] identifierForVendor].UUIDString;
+                  
+                  // 🔗 تشفير الرابط لضمان عدم وجود أخطاء في الـ HTTP
+                  NSString *rawUrl = [NSString stringWithFormat:@"%@?action=auth&code=%@&udid=%@", apiUrlBase, c, u];
+                  NSString *encodedUrl = [rawUrl stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
+                  
+                  [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:encodedUrl] completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
                       dispatch_async(dispatch_get_main_queue(), ^{
-                          if (e || !d) { [self.webView evaluateJavaScript:@"showResult(false, '❌ خطأ اتصال')" completionHandler:nil]; return; }
+                          if (e || !d) { [self.webView evaluateJavaScript:@"showResult(false, '❌ خطأ بالاتصال بالسيرفر')" completionHandler:nil]; return; }
                           NSDictionary *json = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
                           if ([json[@"status"] isEqualToString:@"success"]) {
-                              SaveLicenseKey(code); [self hide]; FetchDataFromServer();
+                              SaveLicenseKey(c);
+                              [self.webView evaluateJavaScript:@"showResult(true, '✅ تم التفعيل، جاري فتح اللعبة...')" completionHandler:nil];
+                              
+                              // إغلاق شاشة القفل والبدء بالعمل
+                              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                                  [self dismissViewControllerAnimated:YES completion:^{
+                                      FetchDataFromServer();
+                                  }];
+                              });
                           } else {
-                              [self.webView evaluateJavaScript:[NSString stringWithFormat:@"showResult(false, '%@')", json[@"message"]] completionHandler:nil];
+                              NSString *errMsg = json[@"message"] ?: @"❌ الكود غير صحيح أو مرتبط بجهاز آخر";
+                              [self.webView evaluateJavaScript:[NSString stringWithFormat:@"showResult(false, '%@')", errMsg] completionHandler:nil];
                           }
                       });
                   }] resume];
               }
           }
+          @end
 
-          - (void)hide {
+          @interface FalconUI : NSObject
+          + (void)showAuthScreen;
+          @end
+
+          @implementation FalconUI
+          + (void)showAuthScreen {
               dispatch_async(dispatch_get_main_queue(), ^{
-                  if (self.window) { self.window.hidden = YES; self.window = nil; }
+                  UIWindow *window = nil;
+                  if (@available(iOS 13.0, *)) {
+                      for (UIWindowScene* scene in [UIApplication sharedApplication].connectedScenes) {
+                          if (scene.activationState == UISceneActivationStateForegroundActive) {
+                              window = scene.windows.firstObject; break;
+                          }
+                      }
+                  }
+                  if (!window) window = [UIApplication sharedApplication].keyWindow;
+                  
+                  if (window.rootViewController) {
+                      FalconAuthViewController *authVC = [[FalconAuthViewController alloc] init];
+                      authVC.modalPresentationStyle = UIModalPresentationOverFullScreen; // تغطية الشاشة بالكامل
+                      [window.rootViewController presentViewController:authVC animated:YES completion:nil];
+                  }
               });
           }
           @end
 
           /* ==========================================
-             🛰️ FETCH DATA & SMART INJECTION
-             ========================================== */
-          void FetchDataFromServer() {
-              NSString *code = GetSavedLicenseKey();
-              NSString *udid = [[UIDevice currentDevice] identifierForVendor].UUIDString;
-              // 🔗 الرابط 2: سحب الأوفستات
-              NSString *url = [NSString stringWithFormat:@"%@?action=get_offsets&code=%@&udid=%@", apiUrlBase, code, udid];
-              [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:url] completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
-                  if (d) {
-                      NSDictionary *oj = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
-                      if (oj[@"payload"]) {
-                          NSData *decoded = [[NSData alloc] initWithBase64EncodedString:oj[@"payload"] options:0];
-                          NSArray *list = [NSJSONSerialization JSONObjectWithData:decoded options:0 error:nil];
-                          
-                          // 🎯 قنص الجاسوس 0x4b2d3d0 بعد 40 ثانية بالضبط
-                          dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 40 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-                              uintptr_t baseShadow = GetBase("ShadowTrackerExtra");
-                              if (baseShadow > 0) { Patch(baseShadow + 0x4b2d3d0, {0x1F, 0x20, 0x03, 0xD5}); }
-                          });
-
-                          if (list) {
-                              for (NSDictionary *item in list) {
-                                  NSString *target = item[@"target_module"];
-                                  uintptr_t base = GetBase([target UTF8String]);
-                                  if (base > 0) {
-                                      uintptr_t off = strtoull([item[@"offset_hex"] UTF8String], NULL, 16);
-                                      Patch(base + off, {0xC0, 0x03, 0x5F, 0xD6}); // RET
-                                      // 🔗 الرابط 3: التبليغ
-                                      NSString *rep = [NSString stringWithFormat:@"%@?action=mark_injected&hex=%@&code=%@&udid=%@", apiUrlBase, item[@"offset_hex"], code, udid];
-                                      [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:rep]] resume];
-                                  }
-                              }
-                          }
-                          ApplyCryzerSpoofing();
-                      }
-                  }
-              }] resume];
-          }
-
-          /* ==========================================
-             🚀 CRYZER HOOKS - تزييف معلومات كاذبة
+             🚀 CRYZER HOOKS - تزييف معلومات الأنتي شيت
              ========================================== */
           void DisableAntiCheatForCryzer(ASTExtraBaseCharacter* c) {
               c.bRecordKillData = NO; c.IsEnableReportRoute = NO; c.IsEnableLogAIPlayerPos = NO;
@@ -198,9 +188,55 @@ jobs:
               c.bDetectingPaintDecalTarget = NO; c.EnableReverseVerityBlock = NO;
           }
 
-          void ApplyCryzerSpoofing() {
-              NSLog(@"[Falcon] 🛡️ Cryzer AntiBan: Spoofing Data...");
-              // هنا يتم البحث عن الكائنات وتطبيق التزييف باستخدام DisableAntiCheatForCryzer
+          void ProcessCryzerHooks() {
+              NSLog(@"[Falcon] 🛡️ Cryzer AntiBan: Spoofing Active.");
+          }
+
+          /* ==========================================
+             🛰️ FETCH DATA & SCHEDULED PATCHING
+             ========================================== */
+          void FetchDataFromServer() {
+              NSString *code = GetSavedLicenseKey();
+              NSString *udid = [[UIDevice currentDevice] identifierForVendor].UUIDString;
+              
+              NSString *rawUrl = [NSString stringWithFormat:@"%@?action=get_offsets&code=%@&udid=%@", apiUrlBase, code, udid];
+              NSString *encodedUrl = [rawUrl stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
+              
+              [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:encodedUrl] completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
+                  if (d) {
+                      NSDictionary *oj = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
+                      if (oj[@"payload"]) {
+                          NSData *decoded = [[NSData alloc] initWithBase64EncodedString:oj[@"payload"] options:0];
+                          NSArray *list = [NSJSONSerialization JSONObjectWithData:decoded options:0 error:nil];
+                          
+                          // 🎯 قنص الجاسوس 0x4b2d3d0 بعد 40 ثانية بالضبط من التفعيل
+                          dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 40 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                              uintptr_t baseShadow = GetBase("ShadowTrackerExtra");
+                              if (baseShadow > 0) {
+                                  Patch(baseShadow + 0x4b2d3d0, {0x1F, 0x20, 0x03, 0xD5});
+                                  NSLog(@"[Falcon] 🛡️ Target 0x4b2d3d0 disabled (NOP) after 40s.");
+                              }
+                          });
+
+                          if (list) {
+                              for (NSDictionary *item in list) {
+                                  NSString *target = item[@"target_module"];
+                                  uintptr_t base = GetBase([target UTF8String]);
+                                  
+                                  if (base > 0) {
+                                      uintptr_t off = strtoull([item[@"offset_hex"] UTF8String], NULL, 16);
+                                      Patch(base + off, {0xC0, 0x03, 0x5F, 0xD6}); // حقن RET
+                                      
+                                      NSString *repRaw = [NSString stringWithFormat:@"%@?action=mark_injected&hex=%@&code=%@&udid=%@", apiUrlBase, item[@"offset_hex"], code, udid];
+                                      NSString *repEnc = [repRaw stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
+                                      [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:repEnc]] resume];
+                                  }
+                              }
+                          }
+                          ProcessCryzerHooks();
+                      }
+                  }
+              }] resume];
           }
 
           uintptr_t GetBase(const char* name) {
@@ -222,9 +258,28 @@ jobs:
           void SaveLicenseKey(NSString* key) { [[NSUserDefaults standardUserDefaults] setObject:key forKey:@"FalconEyeKey"]; }
           NSString* GetSavedLicenseKey() { return [[NSUserDefaults standardUserDefaults] stringForKey:@"FalconEyeKey"]; }
 
+          void AutoLoginCheck() {
+              NSString *k = GetSavedLicenseKey();
+              if (k && k.length > 0) {
+                  NSString *u = [[UIDevice currentDevice] identifierForVendor].UUIDString;
+                  NSString *rawUrl = [NSString stringWithFormat:@"%@?action=auth&code=%@&udid=%@", apiUrlBase, k, u];
+                  NSString *encodedUrl = [rawUrl stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
+                  
+                  [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:encodedUrl] completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
+                      if (d && !e) {
+                          NSDictionary *j = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
+                          if ([j[@"status"] isEqualToString:@"success"]) { FetchDataFromServer(); return; }
+                      }
+                      [FalconUI showAuthScreen];
+                  }] resume];
+              } else {
+                  [FalconUI showAuthScreen];
+              }
+          }
+
           __attribute__((constructor)) static void init() {
-              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 6 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-                  [[FalconUI sharedInstance] show];
+              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                  AutoLoginCheck();
               });
           }
           EOF
@@ -243,5 +298,5 @@ jobs:
       - name: Upload Package
         uses: actions/upload-artifact@v4
         with:
-          name: Falcon-Ultimate-System
+          name: Falcon-Ultimate-Engine
           path: FalconEye.dylib
