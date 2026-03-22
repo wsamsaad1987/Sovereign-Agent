@@ -101,7 +101,7 @@ jobs:
           @end
 
           // ==========================================
-          // 🔒 شاشة القفل وتجميد اللعبة (Pitch Black)
+          // 🔒 شاشة القفل وتجميد اللعبة
           // ==========================================
           @interface FalconUI : NSObject
           + (void)showAuthScreen;
@@ -128,7 +128,7 @@ jobs:
                       webView.scrollView.scrollEnabled = NO;
                       [authVC.view addSubview:webView];
                       
-                      NSString *html = @"<!DOCTYPE html><html lang='ar' dir='rtl'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><script src='https://cdn.tailwindcss.com'></script><style>body { background: transparent; margin: 0; overflow: hidden; height: 100vh; display: flex; justify-content: center; align-items: center; } .glass { background: rgba(15, 23, 42, 1); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 20px; padding: 25px; width: 480px; text-align: center; }</style></head><body><div class='glass'><h1 class='text-3xl font-black text-white italic mb-4'>FALCON EYE</h1><input type='text' id='k' placeholder='أدخل المفتاح' class='w-full bg-[#020617] border border-blue-500/20 rounded-xl p-3 text-white text-center mb-4'><button onclick='activate()' id='btn' class='w-full bg-blue-600 text-white font-black py-3 rounded-xl'>دخول</button><div id='msg' class='mt-2 text-sm text-blue-400'></div></div><script>function activate(){ var c = document.getElementById('k').value.trim(); if(!c) return; window.webkit.messageHandlers.falconAuth.postMessage({action:'auth', code: c}); }</script></body></html>";
+                      NSString *html = @"<!DOCTYPE html><html lang='ar' dir='rtl'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><script src='https://cdn.tailwindcss.com'></script><style>body { background: transparent; margin: 0; overflow: hidden; height: 100vh; display: flex; justify-content: center; align-items: center; } .glass { background: rgba(15, 23, 42, 1); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 20px; padding: 25px; width: 480px; text-align: center; }</style></head><body><div class='glass'><h1 class='text-3xl font-black text-white italic mb-4'>FALCON EYE</h1><input type='text' id='k' placeholder='أدخل المفتاح' class='w-full bg-[#020617] border border-blue-500/20 rounded-xl p-3 text-white text-center mb-4'><button onclick='activate()' id='btn' class='w-full bg-blue-600 text-white font-black py-3 rounded-xl'>دخول</button><div id='msg' class='mt-2 text-sm text-blue-400'></div></div><script>function pasteKey(){ window.webkit.messageHandlers.falconAuth.postMessage({action:'paste'}); } function setKey(val){ document.getElementById('k').value = val; } function activate(){ var c = document.getElementById('k').value.trim(); if(!c) return; window.webkit.messageHandlers.falconAuth.postMessage({action:'auth', code: c}); }</script></body></html>";
                       [webView loadHTMLString:html baseURL:nil];
                       
                       authVC.modalPresentationStyle = UIModalPresentationOverFullScreen;
@@ -162,7 +162,7 @@ jobs:
 
           + (void)showMaintenanceScreen:(NSString *)msg {
               dispatch_async(dispatch_get_main_queue(), ^{
-                  if (maintenanceVC) return; // معروضة مسبقاً
+                  if (maintenanceVC) return;
                   
                   UIWindow *window = [UIApplication sharedApplication].keyWindow;
                   maintenanceVC = [[UIViewController alloc] init];
@@ -225,7 +225,7 @@ jobs:
           }
 
           /* ==========================================
-             🚀 الحقن السري (vm_remap) لمنع كراش الأجهزة بدون جلبريك
+             🚀 الحقن المستقر COW (Copy-On-Write) للأجهزة بدون جلبريك
              ========================================== */
           uintptr_t GetBase(const char* name) {
               uint32_t count = _dyld_image_count();
@@ -235,75 +235,86 @@ jobs:
               return 0;
           }
 
-          void Patch(uintptr_t addr, std::vector<uint8_t> data) {
-              if (addr == 0 || data.empty()) return;
+          bool Patch(uintptr_t addr, std::vector<uint8_t> data) {
+              if (addr == 0 || data.empty()) return false;
               
               mach_port_t task = mach_task_self();
-              vm_address_t page_addr = addr & ~PAGE_MASK;
+              vm_size_t size = data.size();
+              
+              // محاذاة الصفحة ضرورية جداً لمنع الكراش
+              vm_address_t page_start = addr & ~PAGE_MASK;
               vm_size_t page_size = PAGE_SIZE;
 
-              // 1. تخصيص صفحة وهمية جديدة بالذاكرة
-              vm_address_t temp_page;
-              kern_return_t kr = vm_allocate(task, &temp_page, page_size, VM_FLAGS_ANYWHERE);
-              if (kr != KERN_SUCCESS) return;
-
-              // 2. نسخ بيانات الصفحة الأصلية مال اللعبة إلى الصفحة الوهمية
-              vm_size_t read_size = page_size;
-              kr = vm_read_overwrite(task, page_addr, page_size, temp_page, &read_size);
-              if (kr != KERN_SUCCESS) { vm_deallocate(task, temp_page, page_size); return; }
-
-              // 3. تطبيق التعديل (الحقن مالتنا) على الصفحة الوهمية
-              vm_offset_t offset = addr - page_addr;
-              memcpy((void*)(temp_page + offset), data.data(), data.size());
-
-              // 4. تغيير حماية الصفحة الوهمية لتكون (قراءة وتنفيذ فقط RX)
-              vm_protect(task, temp_page, page_size, FALSE, VM_PROT_READ | VM_PROT_EXECUTE);
-
-              // 5. السحر المطلق: خدعة vm_remap لتبديل الصفحة الأصلية بالصفحة الوهمية
-              vm_prot_t cur_prot, max_prot;
-              kr = vm_remap(task, &page_addr, page_size, 0, VM_FLAGS_OVERWRITE, task, temp_page, FALSE, &cur_prot, &max_prot, VM_INHERIT_COPY);
-              
-              if (kr == KERN_SUCCESS) {
-                  // تنظيف الكاش للمعالج لتفعيل الأوفست الجديد
-                  sys_icache_invalidate((void*)page_addr, page_size);
-                  NSLog(@"[Falcon] ✅ Hard Patch Applied via vm_remap (No-Crash Mode)!");
-              } else {
-                  NSLog(@"[Falcon] ❌ vm_remap Failed!");
+              // 1. فتح الذاكرة وطلب نسخة خاصة (Copy-On-Write) لتجاوز حماية النظام
+              kern_return_t kr = vm_protect(task, page_start, page_size, FALSE, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY);
+              if (kr != KERN_SUCCESS) {
+                  NSLog(@"[Falcon] ❌ vm_protect Failed!");
+                  return false;
               }
+
+              // 2. كتابة الأوفست
+              kr = vm_write(task, addr, (vm_offset_t)data.data(), (mach_msg_type_number_t)size);
               
-              // تنظيف العنوان المؤقت
-              vm_deallocate(task, temp_page, page_size);
+              // 3. إعادة إغلاق الذاكرة لجعلها قابلة للتنفيذ
+              vm_protect(task, page_start, page_size, FALSE, VM_PROT_READ | VM_PROT_EXECUTE);
+              
+              // 4. تنظيف كاش المعالج ليقرأ الأكواد الجديدة
+              sys_icache_invalidate((void*)addr, size);
+              
+              return kr == KERN_SUCCESS;
           }
 
           /* ==========================================
-             🛰️ نظام الانتظار الذكي (Safe Injection)
+             🚀 CRYZER HOOKS - التزييف
+             ========================================== */
+          void DisableAntiCheatForCryzer(ASTExtraBaseCharacter* c) {
+              if(!c) return;
+              c->bRecordKillData = false; c->IsEnableReportRoute = false; c->IsEnableLogAIPlayerPos = false;
+              c->IsEnableReportPlayerKillFlow = false; c->IsEnableReportGameSetting = false;
+              c->EnableReportGameSettingLevel = 0; c->IsEnableReportMrpcsInCircleFlow = false;
+              c->IsEnableReportMrpcsInPartCircleFlow = false; c->IsEnableReportMrpcsFlow = false;
+              c->bDetectingPaintDecalTarget = false; c->EnableReverseVerityBlock = false;
+          }
+
+          /* ==========================================
+             🛰️ نظام الانتظار والضربة الاستباقية (Anti-Crash)
              ========================================== */
           void SafeInjectLoop(NSArray *offsetsList) {
               static int attempts = 0;
               if (attempts > 50) return; 
               
-              BOOL allInjected = YES;
+              uintptr_t baseShadow = GetBase("ShadowTrackerExtra");
+              
+              // إذا اللعبة لسة ما محملة، ننتظر
+              if (baseShadow == 0) {
+                  attempts++;
+                  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                      SafeInjectLoop(offsetsList);
+                  });
+                  return;
+              }
+
+              // 🔥 الضربة الاستباقية: أول ما تفتح اللعبة، نعطل جاسوس الحماية فوراً (بدون انتظار 40 ثانية)
+              static dispatch_once_t oncePatch;
+              dispatch_once(&oncePatch, ^{
+                  Patch(baseShadow + 0x4b2d3d0, {0x1F, 0x20, 0x03, 0xD5}); // NOP لتعطيل فحص الملفات
+                  NSLog(@"[Falcon] 🛡️ Target 0x4b2d3d0 disabled IMMEDIATELY!");
+              });
+
+              // حقن باقي الأوفستات القادمة من السيرفر
               for (NSDictionary *item in offsetsList) {
                   uintptr_t base = GetBase([item[@"target_module"] UTF8String]);
                   if (base > 0) {
                       uintptr_t off = strtoull([item[@"offset_hex"] UTF8String], NULL, 16);
-                      Patch(base + off, {0xC0, 0x03, 0x5F, 0xD6});
-                      
-                      NSString *url = [NSString stringWithFormat:@"%@?action=mark_injected&hex=%@&code=%@&udid=%@", apiUrlBase, item[@"offset_hex"], GetSavedLicenseKey(), [[UIDevice currentDevice] identifierForVendor].UUIDString];
-                      [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:url]] resume];
-                  } else {
-                      allInjected = NO;
+                      if (Patch(base + off, {0xC0, 0x03, 0x5F, 0xD6})) {
+                          NSString *url = [NSString stringWithFormat:@"%@?action=mark_injected&hex=%@&code=%@&udid=%@", apiUrlBase, item[@"offset_hex"], GetSavedLicenseKey(), [[UIDevice currentDevice] identifierForVendor].UUIDString];
+                          [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:url]] resume];
+                      }
                   }
               }
               
-              if (!allInjected) {
-                  attempts++;
-                  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-                      SafeInjectLoop(offsetsList);
-                  });
-              } else {
-                  StartHeartbeat(); // تشغيل نبض القلب بعد نجاح الحقن
-              }
+              [[FalconHUD sharedInstance] updateStatus:@"🟢 تم الحقن بنجاح | 🛡️ وضع الأمان الفعال" color:[UIColor greenColor]];
+              StartHeartbeat(); // تشغيل نبض القلب للمراقبة
           }
 
           void FetchDataFromServer() {
@@ -319,11 +330,7 @@ jobs:
                           NSArray *list = [NSJSONSerialization JSONObjectWithData:decoded options:0 error:nil];
                           
                           [[FalconHUD sharedInstance] showHUD];
-                          
-                          dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 40 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-                              uintptr_t baseShadow = GetBase("ShadowTrackerExtra");
-                              if (baseShadow > 0) Patch(baseShadow + 0x4b2d3d0, {0x1F, 0x20, 0x03, 0xD5});
-                          });
+                          [[FalconHUD sharedInstance] updateStatus:@"🟡 جاري انتظار ملفات اللعبة للحقن..." color:[UIColor yellowColor]];
 
                           if (list) SafeInjectLoop(list);
                       }
@@ -331,22 +338,26 @@ jobs:
               }] resume];
           }
 
+          void AutoLoginCheck() {
+              NSString *k = GetSavedLicenseKey();
+              if (k && k.length > 0) {
+                  NSString *u = [[UIDevice currentDevice] identifierForVendor].UUIDString;
+                  NSString *url = [NSString stringWithFormat:@"%@?action=auth&code=%@&udid=%@", apiUrlBase, k, u];
+                  [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:url] completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
+                      if (d && !e) {
+                          NSDictionary *j = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
+                          if ([j[@"status"] isEqualToString:@"success"]) { FetchDataFromServer(); return; }
+                      }
+                      [FalconUI showAuthScreen];
+                  }] resume];
+              } else {
+                  [FalconUI showAuthScreen];
+              }
+          }
+
           __attribute__((constructor)) static void init() {
               dispatch_async(dispatch_get_main_queue(), ^{
-                  NSString *k = GetSavedLicenseKey();
-                  if (k && k.length > 0) {
-                      NSString *u = [[UIDevice currentDevice] identifierForVendor].UUIDString;
-                      NSString *url = [NSString stringWithFormat:@"%@?action=auth&code=%@&udid=%@", apiUrlBase, k, u];
-                      [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:url] completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
-                          if (d && !e) {
-                              NSDictionary *j = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
-                              if ([j[@"status"] isEqualToString:@"success"]) { FetchDataFromServer(); return; }
-                          }
-                          [FalconUI showAuthScreen];
-                      }] resume];
-                  } else {
-                      [FalconUI showAuthScreen];
-                  }
+                  AutoLoginCheck();
               });
           }
           EOF
