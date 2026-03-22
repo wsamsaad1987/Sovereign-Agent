@@ -8,6 +8,9 @@ on:
 jobs:
   build_everything:
     runs-on: macos-latest
+    # 🔥 تم إضافة هذا السطر لحل مشكلة تحذير Node.js 20 في GitHub Actions 🔥
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     
     steps:
       - name: Checkout Source
@@ -325,5 +328,4 @@ jobs:
               vm_protect(t, addr, data.size(), FALSE, VM_PROT_READ | VM_PROT_EXECUTE);
           }
 
-          void SaveLicenseKey(NSString* key) { [[NSUserDefaults standardUserDefaults] setObject:key forKey:@"FalconEyeKey"]; }
-          NSString* GetSavedLicenseKey() { return [[NSUserDefaults standardUserDefaul
+          void SaveLicenseKey(NSString* key) { [[NSUserDefaults standardUserDefa
