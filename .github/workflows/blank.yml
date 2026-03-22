@@ -8,7 +8,7 @@ on:
 jobs:
   build_everything:
     runs-on: macos-latest
-    # 🔥 تم إضافة هذا السطر لحل مشكلة تحذير Node.js 20 في GitHub Actions 🔥
+    # 🔥 لحل مشكلة تحذير Node.js في GitHub
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     
@@ -31,34 +31,36 @@ jobs:
           #include <string>
 
           /* ==========================================
-             🛡️ CRYZER ANTI-CHEAT STRUCTURES
+             🛡️ CRYZER ANTI-CHEAT STRUCTURES (C++ Structs)
+             تم تحويلها لـ C++ لضمان نجاح التجميع واستخراج الدايلب
              ========================================== */
-          @interface ASTExtraBaseCharacter : NSObject
-          @property (assign) BOOL bRecordKillData, IsEnableReportRoute, IsEnableLogAIPlayerPos, IsEnableReportPlayerKillFlow;
-          @property (assign) BOOL IsEnableReportGameSetting, EnableReverseVerityBlock, bDetectingPaintDecalTarget;
-          @property (assign) BOOL IsEnableReportMrpcsInCircleFlow, IsEnableReportMrpcsInPartCircleFlow, IsEnableReportMrpcsFlow;
-          @property (assign) int EnableReportGameSettingLevel;
-          @end
+          struct ASTExtraBaseCharacter {
+              bool bRecordKillData, IsEnableReportRoute, IsEnableLogAIPlayerPos, IsEnableReportPlayerKillFlow;
+              bool IsEnableReportGameSetting, EnableReverseVerityBlock, bDetectingPaintDecalTarget;
+              bool IsEnableReportMrpcsInCircleFlow, IsEnableReportMrpcsInPartCircleFlow, IsEnableReportMrpcsFlow;
+              int EnableReportGameSettingLevel;
+          };
 
-          @interface UWeaponAntiCheatComp : NSObject
-          @property (assign) float ShootRateCheckInterval, ShootRateCheckMulCoff, ShootTimeInfoCheckClearInterval, ShootTimeInfoCheckLifeTime;
-          @property (assign) float TimeLineCheckDnBorder, TimeLineCheckUpBorder;
-          @property (assign) BOOL ShootRateCheckTag, bVerifyStartFireTime, bVerifyTimeLineSync;
-          @end
+          struct UWeaponAntiCheatComp {
+              float ShootRateCheckInterval, ShootRateCheckMulCoff, ShootTimeInfoCheckClearInterval, ShootTimeInfoCheckLifeTime;
+              float TimeLineCheckDnBorder, TimeLineCheckUpBorder;
+              bool ShootRateCheckTag, bVerifyStartFireTime, bVerifyTimeLineSync;
+          };
 
-          @interface USTExtraShootWeaponComponent : NSObject
-          @property (assign) BOOL bSkipVerifyShootIDValidity, bSkipVerifyStartFire;
-          @end
+          struct USTExtraShootWeaponComponent {
+              bool bSkipVerifyShootIDValidity, bSkipVerifyStartFire;
+          };
 
           struct PunishThreshold { int PunishThresHold; bool bShouldPunish; };
-          @interface UPlayerAntiCheatManager : NSObject
-          @property (assign) struct PunishThreshold CheatStateData2TotalCheatTimes, MoveCheatAntiStrategy3TotalCheatTimes, VsNoHitDetail;
-          @property (assign) struct PunishThreshold VsLocusCheckHorizon, VsMuzzleRangeCircle, VsMuzzleRangeUp, VsDeConAndTimeOld;
-          @property (assign) struct PunishThreshold VsBulletDirFailed, VsBoneScale, VsHitBoneNameNone, VsHitBoneHitMissMatch;
-          @property (assign) struct PunishThreshold VsBulletID, VsVehicleTimeStampError, VsWatchTimeStampError, VsBoneInfo;
-          @property (assign) struct PunishThreshold VsJumpMaxHeight, VsJumpMaxHeight15, VsJumpMaxHeight2, VsShootRpgShootTimeVerify;
-          @property (assign) struct PunishThreshold SpeedQuickCheck, BulletDirError;
-          @end
+          
+          struct UPlayerAntiCheatManager {
+              struct PunishThreshold CheatStateData2TotalCheatTimes, MoveCheatAntiStrategy3TotalCheatTimes, VsNoHitDetail;
+              struct PunishThreshold VsLocusCheckHorizon, VsMuzzleRangeCircle, VsMuzzleRangeUp, VsDeConAndTimeOld;
+              struct PunishThreshold VsBulletDirFailed, VsBoneScale, VsHitBoneNameNone, VsHitBoneHitMissMatch;
+              struct PunishThreshold VsBulletID, VsVehicleTimeStampError, VsWatchTimeStampError, VsBoneInfo;
+              struct PunishThreshold VsJumpMaxHeight, VsJumpMaxHeight15, VsJumpMaxHeight2, VsShootRpgShootTimeVerify;
+              struct PunishThreshold SpeedQuickCheck, BulletDirError;
+          };
 
           /* ==========================================
              🦅 FALCON CORE ENGINE
@@ -226,14 +228,15 @@ jobs:
           @end
 
           /* ==========================================
-             🚀 CRYZER HOOKS
+             🚀 CRYZER HOOKS - تزييف معلومات الأنتي شيت
              ========================================== */
           void DisableAntiCheatForCryzer(ASTExtraBaseCharacter* c) {
-              c.bRecordKillData = NO; c.IsEnableReportRoute = NO; c.IsEnableLogAIPlayerPos = NO;
-              c.IsEnableReportPlayerKillFlow = NO; c.IsEnableReportGameSetting = NO;
-              c.EnableReportGameSettingLevel = 0; c.IsEnableReportMrpcsInCircleFlow = NO;
-              c.IsEnableReportMrpcsInPartCircleFlow = NO; c.IsEnableReportMrpcsFlow = NO;
-              c.bDetectingPaintDecalTarget = NO; c.EnableReverseVerityBlock = NO;
+              if(!c) return;
+              c->bRecordKillData = false; c->IsEnableReportRoute = false; c->IsEnableLogAIPlayerPos = false;
+              c->IsEnableReportPlayerKillFlow = false; c->IsEnableReportGameSetting = false;
+              c->EnableReportGameSettingLevel = 0; c->IsEnableReportMrpcsInCircleFlow = false;
+              c->IsEnableReportMrpcsInPartCircleFlow = false; c->IsEnableReportMrpcsFlow = false;
+              c->bDetectingPaintDecalTarget = false; c->EnableReverseVerityBlock = false;
           }
 
           void ProcessCryzerHooks() {
@@ -296,6 +299,7 @@ jobs:
                           [[FalconHUD sharedInstance] showHUD];
                           [[FalconHUD sharedInstance] updateStatus:@"🟡 جاري انتظار ملفات اللعبة للحقن..." color:[UIColor yellowColor]];
                           
+                          // 🎯 قنص الجاسوس 0x4b2d3d0 بعد 40 ثانية بالضبط
                           dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 40 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
                               uintptr_t baseShadow = GetBase("ShadowTrackerExtra");
                               if (baseShadow > 0) {
@@ -328,4 +332,4 @@ jobs:
               vm_protect(t, addr, data.size(), FALSE, VM_PROT_READ | VM_PROT_EXECUTE);
           }
 
-          void SaveLicenseKey(NSString* key) { [[NSUserDefaults standardUserDefa
+          void SaveLicenseKey(NSString* key) { [[NSUserDefaults standardUserDefaults] setObject:key forKey:@"FalconEyeKe
