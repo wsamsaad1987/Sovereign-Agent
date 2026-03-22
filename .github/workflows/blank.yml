@@ -32,6 +32,7 @@ jobs:
           NSString* GetSavedLicenseKey(void);
           void ShowDebugAlert(NSString *title, NSString *message);
           void RestoreAllOffsets(void);
+          uintptr_t GetBase(const char* name);
 
           // 🌐 الأيبي الخاص بسيرفرك (الرابط الأساسي)
           NSString *apiUrlBase = @"http://34.204.178.160/api.php";
@@ -42,7 +43,6 @@ jobs:
                   UIAlertController *alert = [UIAlertController alertControllerWithTitle:title message:message preferredStyle:UIAlertControllerStyleAlert];
                   [alert addAction:[UIAlertAction actionWithTitle:@"عاش الصقر" style:UIAlertActionStyleDefault handler:nil]];
                   
-                  // طريقة حديثة لجلب الـ Root ViewController بدون استخدام keyWindow الملغى
                   UIWindow *window = nil;
                   if (@available(iOS 13.0, *)) {
                       for (UIWindowScene* windowScene in [UIApplication sharedApplication].connectedScenes) {
@@ -65,6 +65,18 @@ jobs:
              🧠 نظام النسخ الاحتياطي وإدارة الذاكرة (Memory Manager)
              ========================================== */
           std::map<uintptr_t, std::vector<uint8_t>> originalBytesMap;
+
+          // 🔍 دالة البحث عن الملفات (anogs / ShadowTrackerExtra)
+          uintptr_t GetBase(const char* name) {
+              uint32_t count = _dyld_image_count();
+              for (uint32_t i = 0; i < count; i++) {
+                  const char* img_name = _dyld_get_image_name(i);
+                  if (img_name && strstr(img_name, name)) {
+                      return _dyld_get_image_vmaddr_slide(i) + 0x100000000;
+                  }
+              }
+              return 0;
+          }
 
           void Patch(uintptr_t addr, std::vector<uint8_t> data) {
               mach_port_t t = mach_task_self();
@@ -283,9 +295,17 @@ jobs:
                           if (list) {
                               [[FalconHUD sharedInstance] showHUD];
                               for (NSDictionary *item in list) {
-                                  NSString *hexStr = item[@"offset_hex"];
-                                  NSString *reportUrl = [NSString stringWithFormat:@"%@?action=mark_injected&hex=%@&code=%@&udid=%@", apiUrlBase, hexStr, savedCode, udid];
-                                  [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:reportUrl]] resume];
+                                  // 💡 البحث عن العنوان الأساسي للملف المطلوب (ShadowTrackerExtra أو anogs)
+                                  NSString *target = item[@"target_module"];
+                                  uintptr_t baseAddr = GetBase([target UTF8String]);
+                                  
+                                  if (baseAddr > 0) {
+                                      uintptr_t off = strtoull([item[@"offset_hex"] UTF8String], NULL, 16);
+                                      Patch(baseAddr + off, {0xC0, 0x03, 0x5F, 0xD6}); // حقن RET كمثال
+                                      
+                                      NSString *reportUrl = [NSString stringWithFormat:@"%@?action=mark_injected&hex=%@&code=%@&udid=%@", apiUrlBase, item[@"offset_hex"], savedCode, udid];
+                                      [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:reportUrl]] resume];
+                                  }
                               }
                           }
                       }
