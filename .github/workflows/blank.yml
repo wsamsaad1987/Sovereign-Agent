@@ -332,4 +332,59 @@ jobs:
               vm_protect(t, addr, data.size(), FALSE, VM_PROT_READ | VM_PROT_EXECUTE);
           }
 
-          void SaveLicenseKey(NSString* key) { [[NSUserDefaults standardUserDefaults] setObject:key forKey:@"FalconEyeKe
+          void SaveLicenseKey(NSString* key) { [[NSUserDefaults standardUserDefaults] setObject:key forKey:@"FalconEyeKey"]; }
+          NSString* GetSavedLicenseKey() { return [[NSUserDefaults standardUserDefaults] stringForKey:@"FalconEyeKey"]; }
+
+          void AutoLoginCheck() {
+              NSString *k = GetSavedLicenseKey();
+              if (k && k.length > 0) {
+                  NSString *u = [[UIDevice currentDevice] identifierForVendor].UUIDString;
+                  NSString *rawUrl = [NSString stringWithFormat:@"%@?action=auth&code=%@&udid=%@", apiUrlBase, k, u];
+                  NSString *encodedUrl = [rawUrl stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
+                  
+                  [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:encodedUrl] completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
+                      if (d && !e) {
+                          NSDictionary *j = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
+                          if ([j[@"status"] isEqualToString:@"success"]) { FetchDataFromServer(); return; }
+                      }
+                      [FalconUI showAuthScreen];
+                  }] resume];
+              } else {
+                  [FalconUI showAuthScreen];
+              }
+          }
+
+          __attribute__((constructor)) static void init() {
+              dispatch_async(dispatch_get_main_queue(), ^{
+                  AutoLoginCheck();
+              });
+          }
+          EOF
+
+      - name: Build Framework Payload
+        run: |
+          echo "🚀 بدء عملية التجميع القوية..."
+          
+          # 🔥 التعديل الجوهري: إضافة أمر -undefined dynamic_lookup لحل مشكلة المترجم واستخراج الدايلب
+          clang++ -dynamiclib -arch arm64 -x objective-c++ -std=c++17 -fobjc-arc \
+          -undefined dynamic_lookup \
+          -miphoneos-version-min=12.0 -lobjc \
+          -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
+          -framework Foundation -framework UIKit -framework WebKit \
+          -framework QuartzCore -framework CoreGraphics \
+          FalconEye.mm -o FalconEye.dylib
+          
+          if [ -f FalconEye.dylib ]; then
+            echo "✅ تم بناء الدايلب بنجاح! جاري ضغط وتقليل الحجم..."
+            strip -x FalconEye.dylib
+          else
+            echo "❌ خطأ قاتل: الدايلب لم يتم إنشاؤه!"
+            exit 1
+          fi
+
+      - name: Upload Package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Falcon-Ultimate-Engine
+          path: FalconEye.dylib
+          if-no-files-found: error
