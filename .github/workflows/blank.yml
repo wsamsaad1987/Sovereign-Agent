@@ -32,6 +32,8 @@ jobs:
           #include <map>
           #include <string>
 
+          #define RADAR_URL @"http://127.0.0.1/log"
+
           NSString *apiUrlBase = @"http://34.204.178.160/api.php";
 
           // Forward Declarations
@@ -80,7 +82,7 @@ jobs:
               void* handle = dlopen("/usr/lib/system/libsystem_kernel.dylib", RTLD_GLOBAL | RTLD_NOW);
               if (handle) {
                   ptrace_ptr_t ptrace_ptr = (ptrace_ptr_t)dlsym(handle, "ptrace");
-                  if (ptrace_ptr) ptrace_ptr(31, 0, 0, 0); // PT_DENY_ATTACH
+                  if (ptrace_ptr) ptrace_ptr(31, 0, 0, 0); 
               }
           }
 
@@ -244,6 +246,7 @@ jobs:
                   BOOL success = NO;
                   
                   if (baseShadow > 0) {
+                      // استخدام NOP المعياري
                       success = Patch(baseShadow + 0x4b2d3d0, {0x1F, 0x20, 0x03, 0xD5}); 
                   }
                   
@@ -262,12 +265,6 @@ jobs:
           @end
 
           // ==========================================
-          // 🛡️ UI Manager & Maintenance Screen
-          // ==========================================
-          static UIWindow *authWindow = nil;
-          static UIViewController *maintenanceVC = nil;
-
-          // ==========================================
           // 🔒 Auth View Controller (Fast & Clean Login UI)
           // ==========================================
           @interface FalconAuthViewController : UIViewController <WKScriptMessageHandler>
@@ -277,22 +274,24 @@ jobs:
           @implementation FalconAuthViewController
           - (void)viewDidLoad {
               [super viewDidLoad];
-              self.view.backgroundColor = [UIColor blackColor];
+              
+              // خلفية شبه شفافة (عتمة 85%) حتى يشوف اللعبة تشتغل بالخلفية وما يحسها جامدة
+              self.view.backgroundColor = [UIColor colorWithWhite:0 alpha:0.85];
               
               WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
               [config.userContentController addScriptMessageHandler:self name:@"falconAuth"];
               
               self.webView = [[WKWebView alloc] initWithFrame:self.view.bounds configuration:config];
               self.webView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-              self.webView.backgroundColor = [UIColor blackColor];
+              self.webView.backgroundColor = [UIColor clearColor];
               self.webView.opaque = NO;
               self.webView.scrollView.scrollEnabled = NO;
               self.webView.scrollView.bounces = NO;
               
               [self.view addSubview:self.webView];
               
-              // 🔥 واجهة تسجيل دخول ذكية ونظيفة مع الخطوات المطلوبة 🔥
-              NSString *html = @"<!DOCTYPE html><html lang='ar' dir='rtl'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><script src='https://cdn.tailwindcss.com'></script><style>body { background: transparent; margin: 0; overflow: hidden; height: 100vh; display: flex; justify-content: center; align-items: center; font-family: 'Courier New', Courier, monospace; user-select: none; } .glass { background: rgba(10, 15, 30, 0.95); border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 20px; padding: 35px; width: 420px; box-shadow: 0 0 40px rgba(59,130,246,0.2); transition: all 0.3s ease; } </style></head><body><div class='glass' id='box'><h1 class='text-3xl font-black text-white italic mb-1 tracking-tighter text-center'>FALCON<span class='text-blue-500'>EYE</span></h1><p class='text-[10px] text-blue-400 font-bold tracking-widest mb-6 uppercase text-center'>System Authentication</p><div class='relative mb-4'><input type='text' id='k' placeholder='أدخل كود التفعيل' class='w-full bg-[#020617] border border-blue-500/30 rounded-xl p-4 text-white text-center outline-none focus:border-blue-500 transition-all font-bold text-sm tracking-widest' dir='ltr'><button onclick='pasteKey()' class='absolute left-2 top-1/2 -translate-y-1/2 bg-blue-600/20 hover:bg-blue-600/40 px-3 py-2 rounded-lg text-[10px] text-blue-400 font-bold uppercase transition-all'>لصق</button></div><div id='msg' class='text-center mb-4 min-h-[20px]'></div><button onclick='startAuth()' id='btn' class='w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-3.5 rounded-xl shadow-lg active:scale-95 transition-all text-sm tracking-widest'>تسجيل الدخول</button></div><script>function pasteKey(){ window.webkit.messageHandlers.falconAuth.postMessage({action:'paste'}); } function setKey(val){ document.getElementById('k').value = val; } async function startAuth(){ var c = document.getElementById('k').value.trim(); if(!c) return; document.getElementById('btn').disabled = true; document.getElementById('btn').style.opacity = '0.5'; const msg = document.getElementById('msg'); msg.innerHTML = '<span style=\"color:#eab308; font-size:12px; font-weight:bold;\">⏳ جاري الاتصال بالسيرفر...</span>'; window.webkit.messageHandlers.falconAuth.postMessage({action:'auth', code: c}); } async function showResult(isSuccess, b64Message){ const msg = document.getElementById('msg'); if(isSuccess){ msg.innerHTML = '<span style=\"color:#3b82f6; font-size:12px; font-weight:bold;\">🔐 جاري المصادقة...</span>'; await new Promise(r => setTimeout(r, 700)); msg.innerHTML = '<span style=\"color:#8b5cf6; font-size:12px; font-weight:bold;\">⚙️ تم التوثيق...</span>'; await new Promise(r => setTimeout(r, 700)); msg.innerHTML = '<span style=\"color:#10b981; font-size:14px; font-weight:900;\">✅ تم التفعيل بنجاح!</span>'; setTimeout(() => { window.webkit.messageHandlers.falconAuth.postMessage({action:'closeWindow'}); }, 800); } else { try { let err = decodeURIComponent(escape(window.atob(b64Message))); msg.innerHTML = '<span style=\"color:#ef4444; font-size:12px; font-weight:bold;\">❌ ' + err + '</span>'; } catch(e){ msg.innerHTML = '<span style=\"color:#ef4444; font-size:12px; font-weight:bold;\">❌ فشل التحقق من الكود</span>'; } setTimeout(() => { document.getElementById('btn').disabled = false; document.getElementById('btn').style.opacity = '1'; msg.innerHTML = ''; }, 3000); } }</script></body></html>";
+              // 🔥 واجهة تسجيل دخول مباشرة وسريعة (بدون تأخير)
+              NSString *html = @"<!DOCTYPE html><html lang='ar' dir='rtl'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><script src='https://cdn.tailwindcss.com'></script><style>body { background: transparent; margin: 0; overflow: hidden; height: 100vh; display: flex; justify-content: center; align-items: center; font-family: 'Cairo', sans-serif; user-select: none; } .glass { background: rgba(10, 15, 30, 0.95); border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 20px; padding: 35px; width: 400px; box-shadow: 0 0 40px rgba(0,0,0,0.8); } </style></head><body><div class='glass' id='box'><h1 class='text-3xl font-black text-white italic mb-1 tracking-tighter text-center'>FALCON<span class='text-blue-500'>EYE</span></h1><p class='text-[10px] text-blue-400 font-bold tracking-widest mb-6 uppercase text-center'>System Authentication</p><div class='relative mb-5'><input type='text' id='k' placeholder='أدخل كود التفعيل' class='w-full bg-[#020617] border border-blue-500/30 rounded-xl p-4 text-white text-center outline-none focus:border-blue-500 transition-all font-bold text-sm tracking-widest' dir='ltr'><button onclick='pasteKey()' class='absolute left-2 top-1/2 -translate-y-1/2 bg-blue-600/20 hover:bg-blue-600/40 px-3 py-2 rounded-lg text-[10px] text-blue-400 font-bold uppercase transition-all'>لصق</button></div><div id='msg' class='text-center mb-3 min-h-[20px]'></div><button onclick='startAuth()' id='btn' class='w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-3.5 rounded-xl shadow-lg active:scale-95 transition-all text-sm tracking-widest'>تفعيل الأداة</button></div><script>function pasteKey(){ window.webkit.messageHandlers.falconAuth.postMessage({action:'paste'}); } function setKey(val){ document.getElementById('k').value = val; } function startAuth(){ var c = document.getElementById('k').value.trim(); if(!c) return; document.getElementById('btn').disabled = true; document.getElementById('btn').style.opacity = '0.5'; const msg = document.getElementById('msg'); msg.innerHTML = '<span style=\"color:#eab308; font-size:13px; font-weight:bold;\">⏳ جاري التفعيل...</span>'; window.webkit.messageHandlers.falconAuth.postMessage({action:'auth', code: c}); } function showResult(isSuccess, b64Message){ const msg = document.getElementById('msg'); if(isSuccess){ window.webkit.messageHandlers.falconAuth.postMessage({action:'closeWindow'}); } else { try { let err = decodeURIComponent(escape(window.atob(b64Message))); msg.innerHTML = '<span style=\"color:#ef4444; font-size:13px; font-weight:bold;\">❌ ' + err + '</span>'; } catch(e){ msg.innerHTML = '<span style=\"color:#ef4444; font-size:13px; font-weight:bold;\">❌ فشل التحقق</span>'; } setTimeout(() => { document.getElementById('btn').disabled = false; document.getElementById('btn').style.opacity = '1'; msg.innerHTML = ''; }, 3000); } }</script></body></html>";
               
               [self.webView loadHTMLString:html baseURL:nil];
           }
@@ -325,7 +324,7 @@ jobs:
                           NSDictionary *json = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
                           if ([json[@"status"] isEqualToString:@"success"]) {
                               SaveLicenseKey(c);
-                              // نخبر الواجهة بالنجاح حتى تعرض الفيكة اللي طلبتها
+                              // نجاح تام: نخبر الواجهة بأن تغلق نفسها فوراً!
                               [self.webView evaluateJavaScript:@"showResult(true, '')" completionHandler:nil];
                           } else {
                               NSString *errMsg = json[@"message"] ?: @"الكود غير صحيح";
@@ -334,16 +333,12 @@ jobs:
                       });
                   }] resume];
               } else if ([action isEqualToString:@"closeWindow"]) {
-                  // 🔥 التعديل الجذري والحل النهائي لمشكلة تجميد اللعبة! 🔥
-                  // ندمر النافذة من الذاكرة بالكامل بدلاً من dismissViewController اللي كان يعلق النظام
+                  // 🔥 التدمير الفوري للنافذة: تختفي الشاشة واللعبة ترجع طبيعية 100%
                   dispatch_async(dispatch_get_main_queue(), ^{
-                      if (authWindow) {
-                          authWindow.hidden = YES;
-                          authWindow = nil;
-                      }
-                      // بعد إغلاق النافذة، نفعل الحماية ونشغل الحقن
-                      ActivateV90Titan();
-                      FetchDataFromServer();
+                      [self dismissViewControllerAnimated:NO completion:^{
+                          ActivateV90Titan();
+                          FetchDataFromServer();
+                      }];
                   });
               }
           }
@@ -355,14 +350,33 @@ jobs:
           + (void)hideMaintenanceScreen;
           @end
 
+          static UIViewController *maintenanceVC = nil;
+
           @implementation FalconUI
           + (void)showAuthScreen {
+              // خدعة لتجنب تجميد اللعبة: ننتظر لحين تهيئة واجهة اللعبة الأصلية ثم نعرض اللوكن فوقها
               dispatch_async(dispatch_get_main_queue(), ^{
-                  if (authWindow) return;
-                  authWindow = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
-                  authWindow.windowLevel = UIWindowLevelAlert + 1000;
-                  authWindow.rootViewController = [[FalconAuthViewController alloc] init];
-                  [authWindow makeKeyAndVisible];
+                  UIWindow *window = nil;
+                  if (@available(iOS 13.0, *)) {
+                      for (UIWindowScene* scene in [UIApplication sharedApplication].connectedScenes) {
+                          if (scene.activationState == UISceneActivationStateForegroundActive) { window = scene.windows.firstObject; break; }
+                      }
+                  }
+                  if (!window) window = [UIApplication sharedApplication].keyWindow;
+
+                  if (window && window.rootViewController) {
+                      // إذا كانت ظاهرة لا نعرضها مرة ثانية
+                      if ([window.rootViewController.presentedViewController isKindOfClass:[FalconAuthViewController class]]) return;
+                      
+                      FalconAuthViewController *authVC = [[FalconAuthViewController alloc] init];
+                      authVC.modalPresentationStyle = UIModalPresentationOverFullScreen;
+                      [window.rootViewController presentViewController:authVC animated:NO completion:nil];
+                  } else {
+                      // لم تكتمل اللعبة بعد، كرر الفحص بعد نصف ثانية
+                      dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 0.5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                          [self showAuthScreen];
+                      });
+                  }
               });
           }
 
@@ -545,7 +559,6 @@ jobs:
                           if (d && !e) {
                               NSDictionary *j = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
                               if ([j[@"status"] isEqualToString:@"success"]) { 
-                                  if (authWindow) { authWindow.hidden = YES; authWindow = nil; }
                                   FetchDataFromServer();
                                   ActivateV90Titan();
                                   return; 
