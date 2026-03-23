@@ -30,6 +30,12 @@ jobs:
           #include <map>
           #include <string>
 
+          // إعلانات مسبقة للدوال حتى نستخدمها بالزر اليدوي
+          uintptr_t GetBase(const char* name);
+          bool Patch(uintptr_t addr, std::vector<uint8_t> data);
+          void FetchDataFromServer(void);
+          void StartHeartbeat(void);
+
           /* ==========================================
              🛡️ CRYZER ANTI-CHEAT STRUCTURES
              ========================================== */
@@ -45,12 +51,27 @@ jobs:
           void SaveLicenseKey(NSString* key) { [[NSUserDefaults standardUserDefaults] setObject:key forKey:@"FalconEyeKey"]; }
           NSString* GetSavedLicenseKey() { return [[NSUserDefaults standardUserDefaults] stringForKey:@"FalconEyeKey"]; }
 
+          /* ==========================================
+             🪟 شباك شفاف للمس (حتى لا يعيق اللعب)
+             ========================================== */
+          @interface PassthroughWindow : UIWindow
+          @end
+          @implementation PassthroughWindow
+          - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
+              UIView *hitView = [super hitTest:point withEvent:event];
+              // إذا كان اللمس على الشباك الفارغ أو النص، نتجاهله حتى يوصل للعبة
+              if (hitView == self || [hitView isKindOfClass:[UILabel class]]) return nil;
+              return hitView; // اللمس فقط للزر (UIButton)
+          }
+          @end
+
           // ==========================================
-          // 🕹️ شريط الحالة الصغير والثابت (Native Text HUD)
+          // 🕹️ شريط الحالة الصغير والثابت (Native Text HUD + Button)
           // ==========================================
           @interface FalconHUD : NSObject
-          @property (nonatomic, strong) UIWindow *hudWindow;
+          @property (nonatomic, strong) PassthroughWindow *hudWindow;
           @property (nonatomic, strong) UILabel *statusLabel;
+          @property (nonatomic, strong) UIButton *bypassButton;
           + (instancetype)sharedInstance;
           - (void)showHUD;
           - (void)updateStatus:(NSString *)status color:(UIColor *)color;
@@ -69,23 +90,50 @@ jobs:
                   if (self.hudWindow) return;
                   
                   CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
-                  self.hudWindow = [[UIWindow alloc] initWithFrame:CGRectMake(0, 10, screenWidth, 20)];
+                  self.hudWindow = [[PassthroughWindow alloc] initWithFrame:CGRectMake(0, 10, screenWidth, 30)];
                   self.hudWindow.windowLevel = UIWindowLevelStatusBar + 100;
                   self.hudWindow.backgroundColor = [UIColor clearColor];
-                  self.hudWindow.userInteractionEnabled = NO; 
+                  // يجب أن تكون YES حتى نستقبل اللمس على الزر
+                  self.hudWindow.userInteractionEnabled = YES; 
                   
-                  self.statusLabel = [[UILabel alloc] initWithFrame:self.hudWindow.bounds];
-                  self.statusLabel.textAlignment = NSTextAlignmentCenter;
-                  self.statusLabel.font = [UIFont boldSystemFontOfSize:10];
+                  // ترتيب أفقي متناسق
+                  UIStackView *stack = [[UIStackView alloc] init];
+                  stack.axis = UILayoutConstraintAxisHorizontal;
+                  stack.spacing = 12;
+                  stack.alignment = UIStackViewAlignmentCenter;
+                  stack.translatesAutoresizingMaskIntoConstraints = NO;
+                  
+                  self.statusLabel = [[UILabel alloc] init];
+                  self.statusLabel.font = [UIFont boldSystemFontOfSize:11];
                   self.statusLabel.textColor = [UIColor yellowColor];
                   self.statusLabel.layer.shadowColor = [UIColor blackColor].CGColor;
                   self.statusLabel.layer.shadowOffset = CGSizeMake(1, 1);
                   self.statusLabel.layer.shadowOpacity = 1.0;
                   self.statusLabel.layer.shadowRadius = 2.0;
-                  
                   self.statusLabel.text = @"🟡 System Booting...";
                   
-                  [self.hudWindow addSubview:self.statusLabel];
+                  // 🔥 الزر اليدوي اللي طلبته (Bypass) 🔥
+                  self.bypassButton = [UIButton buttonWithType:UIButtonTypeSystem];
+                  [self.bypassButton setTitle:@" Bypass 🔴 " forState:UIControlStateNormal];
+                  [self.bypassButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+                  self.bypassButton.titleLabel.font = [UIFont boldSystemFontOfSize:11];
+                  self.bypassButton.backgroundColor = [UIColor colorWithWhite:0 alpha:0.6];
+                  self.bypassButton.layer.cornerRadius = 6;
+                  self.bypassButton.layer.borderWidth = 1;
+                  self.bypassButton.layer.borderColor = [UIColor redColor].CGColor;
+                  self.bypassButton.contentEdgeInsets = UIEdgeInsetsMake(3, 8, 3, 8);
+                  
+                  [self.bypassButton addTarget:self action:@selector(manualBypassTapped) forControlEvents:UIControlEventTouchUpInside];
+                  
+                  [stack addArrangedSubview:self.statusLabel];
+                  [stack addArrangedSubview:self.bypassButton];
+                  
+                  [self.hudWindow addSubview:stack];
+                  
+                  // تثبيت بنص الشاشة
+                  [stack.centerXAnchor constraintEqualToAnchor:self.hudWindow.centerXAnchor].active = YES;
+                  [stack.centerYAnchor constraintEqualToAnchor:self.hudWindow.centerYAnchor].active = YES;
+                  
                   [self.hudWindow makeKeyAndVisible];
               });
           }
@@ -96,6 +144,40 @@ jobs:
                       self.statusLabel.text = status;
                       self.statusLabel.textColor = color;
                   }
+              });
+          }
+
+          // وظيفة الزر اليدوي
+          - (void)manualBypassTapped {
+              // 1. تحويل الزر للودنك (⏳)
+              [self.bypassButton setTitle:@" Bypass ⏳ " forState:UIControlStateNormal];
+              self.bypassButton.layer.borderColor = [UIColor yellowColor].CGColor;
+              self.bypassButton.userInteractionEnabled = NO; // نمنع الضغط مرتين
+              
+              dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+                  [NSThread sleepForTimeInterval:0.5]; // تأثير تحميل واقعي
+                  
+                  uintptr_t baseShadow = GetBase("ShadowTrackerExtra");
+                  BOOL success = NO;
+                  
+                  if (baseShadow > 0) {
+                      // 💥 قنص الأوفست يدوياً 💥
+                      success = Patch(baseShadow + 0x4b2d3d0, {0x1F, 0x20, 0x03, 0xD5}); // NOP
+                  }
+                  
+                  dispatch_async(dispatch_get_main_queue(), ^{
+                      if (success) {
+                          // 2. تحويل الزر للأخضر (✅)
+                          [self.bypassButton setTitle:@" Bypass ✅ " forState:UIControlStateNormal];
+                          self.bypassButton.layer.borderColor = [UIColor greenColor].CGColor;
+                          NSLog(@"[Falcon] 🛡️ Target 0x4b2d3d0 manually disabled!");
+                      } else {
+                          // إذا فشل (اللعبة ما محملة بعد)، نرجع اللون الأحمر ونسمح بالمحاولة مرة ثانية
+                          [self.bypassButton setTitle:@" Bypass ❌ " forState:UIControlStateNormal];
+                          self.bypassButton.layer.borderColor = [UIColor redColor].CGColor;
+                          self.bypassButton.userInteractionEnabled = YES; 
+                      }
+                  });
               });
           }
           @end
@@ -122,7 +204,7 @@ jobs:
                   }
                   if (!window) window = [UIApplication sharedApplication].keyWindow;
 
-                  if (window.rootViewController) {
+                  if (window && window.rootViewController) {
                       UIViewController *authVC = [[UIViewController alloc] init];
                       authVC.view.backgroundColor = [UIColor blackColor];
                       
@@ -146,31 +228,50 @@ jobs:
 
           + (void)userContentController:(WKUserContentController *)userContentController didReceiveScriptMessage:(WKScriptMessage *)message {
               NSDictionary *data = (NSDictionary *)message.body;
-              if ([data[@"action"] isEqualToString:@"auth"]) {
-                  NSString *c = data[@"code"];
+              if ([data[@"action"] isEqualToString:@"paste"]) {
+                  NSString *p = [UIPasteboard generalPasteboard].string;
+                  if (p) {
+                      p = [p stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+                      [self.webView evaluateJavaScript:[NSString stringWithFormat:@"setKey('%@')", p] completionHandler:nil];
+                  }
+              } else if ([data[@"action"] isEqualToString:@"auth"]) {
+                  NSString *c = [data[@"code"] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
                   NSString *u = [[UIDevice currentDevice] identifierForVendor].UUIDString;
-                  NSString *url = [NSString stringWithFormat:@"%@?action=auth&code=%@&udid=%@", apiUrlBase, c, u];
                   
-                  [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:url] completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
-                      if (d) {
+                  NSString *rawUrl = [NSString stringWithFormat:@"%@?action=auth&code=%@&udid=%@", apiUrlBase, c, u];
+                  NSString *encodedUrl = [rawUrl stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
+                  
+                  [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:encodedUrl] completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
+                      dispatch_async(dispatch_get_main_queue(), ^{
+                          if (e || !d) { 
+                              NSString *errorMsg = e ? e.localizedDescription : @"بدون استجابة من السيرفر";
+                              errorMsg = [errorMsg stringByReplacingOccurrencesOfString:@"'" withString:@"\\'"];
+                              [self.webView evaluateJavaScript:[NSString stringWithFormat:@"showResult(false, '❌ خطأ بالاتصال: %@')", errorMsg] completionHandler:nil];
+                              return; 
+                          }
+                          
                           NSDictionary *json = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
                           if ([json[@"status"] isEqualToString:@"success"]) {
                               SaveLicenseKey(c);
-                              dispatch_async(dispatch_get_main_queue(), ^{
-                                  [[UIApplication sharedApplication].keyWindow.rootViewController dismissViewControllerAnimated:YES completion:nil];
-                                  
-                                  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-                                      extern void FetchDataFromServer();
+                              [self.webView evaluateJavaScript:@"showResult(true, '✅ تم التفعيل، جاري إطلاق اللعبة...')" completionHandler:nil];
+                              
+                              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                                  [self dismissViewControllerAnimated:YES completion:^{
                                       FetchDataFromServer();
-                                  });
+                                  }];
                               });
+                          } else {
+                              NSString *errMsg = json[@"message"] ?: @"❌ الكود غير صحيح أو مرتبط بجهاز آخر";
+                              errMsg = [errMsg stringByReplacingOccurrencesOfString:@"'" withString:@"\\'"];
+                              [self.webView evaluateJavaScript:[NSString stringWithFormat:@"showResult(false, '%@')", errMsg] completionHandler:nil];
                           }
-                      }
+                      });
                   }] resume];
               }
           }
+          @end
 
-          // 🔥 تم تصحيح شاشة التجميد لتتوافق مع iOS 13 فما فوق
+          @implementation FalconUI
           + (void)showMaintenanceScreen:(NSString *)msg {
               dispatch_async(dispatch_get_main_queue(), ^{
                   if (maintenanceVC) return;
@@ -185,7 +286,7 @@ jobs:
 
                   if (window && window.rootViewController) {
                       maintenanceVC = [[UIViewController alloc] init];
-                      maintenanceVC.view.backgroundColor = [UIColor colorWithWhite:0 alpha:0.95]; // عتمة كاملة
+                      maintenanceVC.view.backgroundColor = [UIColor colorWithWhite:0 alpha:0.95];
                       
                       UILabel *lbl = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, window.bounds.size.width, 100)];
                       lbl.center = maintenanceVC.view.center;
@@ -323,7 +424,6 @@ jobs:
           }
 
           void FetchDataFromServer() {
-              // 🔥 تم تشغيل نبض القلب (المراقبة) هنا فوراً حتى لو لم يكتمل الحقن!
               StartHeartbeat();
 
               NSString *code = GetSavedLicenseKey();
@@ -350,8 +450,10 @@ jobs:
               NSString *k = GetSavedLicenseKey();
               if (k && k.length > 0) {
                   NSString *u = [[UIDevice currentDevice] identifierForVendor].UUIDString;
-                  NSString *url = [NSString stringWithFormat:@"%@?action=auth&code=%@&udid=%@", apiUrlBase, k, u];
-                  [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:url] completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
+                  NSString *rawUrl = [NSString stringWithFormat:@"%@?action=auth&code=%@&udid=%@", apiUrlBase, k, u];
+                  NSString *encodedUrl = [rawUrl stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
+                  
+                  [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:encodedUrl] completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
                       if (d && !e) {
                           NSDictionary *j = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
                           if ([j[@"status"] isEqualToString:@"success"]) { 
