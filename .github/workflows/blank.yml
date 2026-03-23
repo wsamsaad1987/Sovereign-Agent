@@ -44,31 +44,20 @@ jobs:
           void SaveLicenseKey(NSString* key) { [[NSUserDefaults standardUserDefaults] setObject:key forKey:@"FalconEyeKey"]; }
           NSString* GetSavedLicenseKey() { return [[NSUserDefaults standardUserDefaults] stringForKey:@"FalconEyeKey"]; }
 
-          // ==========================================
-          // 👻 1. الإخفاء العميق (Deep Ghost Mode)
-          // ==========================================
-          void ExecuteDeepGhostMode() {
-              uint32_t count = _dyld_image_count();
-              for (uint32_t i = 0; i < count; i++) {
-                  const char *name = _dyld_get_image_name(i);
-                  if (name && strstr(name, "FalconEye")) {
-                      mach_port_t task = mach_task_self();
-                      struct mach_header_64 *header = (struct mach_header_64 *)(_dyld_get_image_header(i));
-                      vm_protect(task, (vm_address_t)header, 0x1000, FALSE, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY);
-                      memset((void*)header, 0, sizeof(struct mach_header_64));
-                      vm_protect(task, (vm_address_t)header, 0x1000, FALSE, VM_PROT_READ | VM_PROT_EXECUTE);
-                      
-                      vm_protect(task, (vm_address_t)name, strlen(name), FALSE, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY);
-                      memset((void*)name, 0, strlen(name));
-                      vm_protect(task, (vm_address_t)name, strlen(name), FALSE, VM_PROT_READ);
-                      break;
-                  }
-              }
+          NSString* EncodeB64(NSString* input) {
+              NSData* data = [input dataUsingEncoding:NSUTF8StringEncoding];
+              return [data base64EncodedStringWithOptions:0];
           }
 
           // ==========================================
-          // 🥷 2. منظومة V90 TITAN ANTI-CHEAT (تشتغل بالثانية صفر)
+          // 🥷 منظومة V90 TITAN ANTI-CHEAT (المستقرة)
           // ==========================================
+          void SilentLog(NSString *msg) {
+              dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), ^{
+                  NSLog(@"[Falcon V90] %@", msg);
+              });
+          }
+
           typedef BOOL (*fileExistsAtPath_t)(id, SEL, NSString *);
           fileExistsAtPath_t orig_fileExistsAtPath;
 
@@ -108,7 +97,7 @@ jobs:
               method_setImplementation(class_getInstanceMethod([UIDevice class], @selector(systemVersion)), imp_implementationWithBlock(^NSString* (id self) { return @"17.4"; }));
           }
 
-          // 🔥 هذا يشتغل فوراً لمنع الباند 🔥
+          // 🔥 تشغيل الحماية (بدون كراش) 🔥
           void ActivateV90Titan() {
               SetupIdentitySpoof();       
               SetupSignatureSpoof();      
@@ -125,7 +114,7 @@ jobs:
                   return hk_canOpenURL(self, @selector(canOpenURL:), url);
               }));
               
-              NSLog(@"[Falcon] 🛡️ V90 Titan Anti-Cheat Activated (Zero Delay!)");
+              SilentLog(@"✅ V90 Titan Anti-Cheat Activated Safely!");
           }
 
           // ==========================================
@@ -166,7 +155,6 @@ jobs:
                   if (self.hudWindow) return;
                   
                   CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
-                  // 🔥 رفعنا مستوى النافذة حتى تظهر فوك كلشي باللعبة
                   self.hudWindow = [[PassthroughWindow alloc] initWithFrame:CGRectMake(0, 10, screenWidth, 30)];
                   self.hudWindow.windowLevel = UIWindowLevelAlert + 500;
                   self.hudWindow.backgroundColor = [UIColor clearColor];
@@ -354,7 +342,7 @@ jobs:
                           self.statusLbl.textColor = [UIColor systemGreenColor];
                           self.statusLbl.text = @"✅ تم التفعيل بنجاح!";
                           
-                          // 🔥 الإغلاق الذري: أنيميشن سريع لإخفاء الشاشة وتفعيل اللمبات فوراً 🔥
+                          // 🔥 الإغلاق الذري للنافذة وبدء العمليات بصمت
                           dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 0.5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
                               extern void CloseAuthWindowAndStart();
                               CloseAuthWindowAndStart();
@@ -389,15 +377,13 @@ jobs:
           void CloseAuthWindowAndStart() {
               dispatch_async(dispatch_get_main_queue(), ^{
                   if (authWindow) {
-                      // أنيميشن اختفاء يعيد السيطرة للعبة بشكل سلس
                       [UIView animateWithDuration:0.3 animations:^{
                           authWindow.alpha = 0.0;
                       } completion:^(BOOL finished) {
                           authWindow.hidden = YES;
-                          [authWindow resignKeyWindow]; // سحب السيطرة من النافذة وإعادتها للعبة
+                          [authWindow resignKeyWindow]; 
                           authWindow = nil;
                           
-                          // إظهار اللمبات فوراً بعد إغلاق اللوحة
                           [[FalconHUD sharedInstance] showHUD];
                           FetchDataFromServer();
                       }];
@@ -422,6 +408,8 @@ jobs:
                   if (!window) window = [UIApplication sharedApplication].keyWindow;
 
                   if (window && window.rootViewController) {
+                      if ([window.rootViewController.presentedViewController isKindOfClass:[FalconAuthViewController class]]) return;
+                      
                       authWindow = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
                       authWindow.windowLevel = UIWindowLevelAlert + 1000;
                       authWindow.rootViewController = [[FalconAuthViewController alloc] init];
@@ -568,7 +556,6 @@ jobs:
                           if (d && !e) {
                               NSDictionary *j = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
                               if ([j[@"status"] isEqualToString:@"success"]) { 
-                                  // دخول تلقائي ناجح: بدون إظهار اللوحة، إظهار اللمبات فوراً
                                   [[FalconHUD sharedInstance] showHUD];
                                   FetchDataFromServer();
                                   return; 
@@ -585,14 +572,9 @@ jobs:
           }
 
           __attribute__((constructor)) static void init() {
-              // 1. الإخفاء العميق فوراً
-              ExecuteDeepGhostMode(); 
-              
-              // 2. تفعيل حماية V90 Titan (فوراً بالثانية صفر لمنع الباند)
-              ActivateV90Titan(); 
-              
-              // 3. فحص تسجيل الدخول
-              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+              // ⏳ تأخير 1.5 ثانية قبل تشغيل الحماية واللوحة لضمان نهوض محرك اللعبة بالكامل ومنع الكراش الفوري
+              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                  ActivateV90Titan(); 
                   AutoLoginCheck();
               });
           }
