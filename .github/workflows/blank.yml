@@ -104,16 +104,14 @@ jobs:
                   CGFloat sw = [UIScreen mainScreen].bounds.size.width;
                   self.isCollapsed = NO;
                   
-                  // الإطار الرفيع الثابت (V-VIP)
                   self.hudWindow = [[UIWindow alloc] initWithFrame:CGRectMake(sw/2 - 160, 42, 320, 22)];
                   self.hudWindow.windowLevel = UIWindowLevelAlert + 2000;
                   self.hudWindow.backgroundColor = [UIColor clearColor];
                   self.hudWindow.userInteractionEnabled = YES; 
                   
                   self.bgView = [[UIView alloc] initWithFrame:self.hudWindow.bounds];
-                  self.bgView.backgroundColor = [UIColor colorWithWhite:0 alpha:0.3]; // شفاف 30%
+                  self.bgView.backgroundColor = [UIColor colorWithWhite:0 alpha:0.3];
                   self.bgView.layer.cornerRadius = 11;
-                  self.bgView.clipsToBounds = YES;
                   [self.hudWindow addSubview:self.bgView];
                   
                   UIStackView *stack = [[UIStackView alloc] initWithFrame:CGRectMake(10, 0, 300, 22)];
@@ -142,16 +140,13 @@ jobs:
                   [stack addArrangedSubview:self.expireLabel];
                   [self.bgView addSubview:stack];
                   
-                  // انقر للإخفاء والإظهار
                   UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(toggleHUD)];
                   [self.hudWindow addGestureRecognizer:tap];
-                  
                   [self.hudWindow makeKeyAndVisible];
                   
                   self.displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(tick:)];
                   [self.displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
                   
-                  // حماية الستريمر
                   [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(onCapture:) name:UIScreenCapturedDidChangeNotification object:nil];
               });
           }
@@ -214,7 +209,7 @@ jobs:
           // 🔥 دالة الخدعة البرمجية: حقن ومسح أثر تكراري 🔥
           void GhostCycleLoop(NSMutableArray *offsetsList) {
               int total = (int)offsetsList.count;
-              int batchSize = 4; // المعالج يتحمل 4-6 فقط
+              int batchSize = 4;
               
               for (int i = 0; i < total; i += batchSize) {
                   std::vector<void*> targets;
@@ -236,20 +231,14 @@ jobs:
 
                   if (targets.size() > 0) {
                       #if JAILED_HOOK_ENABLED
-                      // 1. احقن الدفعة (الحقن يبقى بالملف/الذاكرة)
                       hook(targets.data(), replacements.data(), targets.size());
-                      
-                      // 2. انتظر ثانية للتثبيت
                       [NSThread sleepForTimeInterval:0.5];
-                      
-                      // 3. مسح الأثر من مسجلات المعالج (الخدعة هنا) لفتح خانات جديدة
-                      // ملاحظة: دالة hook في مكتبتك تقوم بمسح القديم عند استدعاء جديد
                       #endif
 
                       for (NSMutableDictionary *item in currentBatchItems) {
                           [item setValue:@YES forKey:@"injected"];
-                          // تبليغ السيرفر بنجاح الحقن لكل أوفست
-                          NSString *rawUrl = [NSString stringWithFormat:@"%@?action=mark_injected&hex=%@&code=%@&udid=%@", apiUrlBase, item[@"offset_hex"], GetSavedLicenseCode(), [[UIDevice currentDevice] identifierForVendor].UUIDString];
+                          // 🛠️ تم تصحيح اسم الدالة هنا ليكون GetSavedLicenseKey
+                          NSString *rawUrl = [NSString stringWithFormat:@"%@?action=mark_injected&hex=%@&code=%@&udid=%@", apiUrlBase, item[@"offset_hex"], GetSavedLicenseKey(), [[UIDevice currentDevice] identifierForVendor].UUIDString];
                           [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:[rawUrl stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]]]] resume];
                       }
                   }
@@ -268,7 +257,6 @@ jobs:
                           NSArray *list = [NSJSONSerialization JSONObjectWithData:[[NSData alloc] initWithBase64EncodedString:oj[@"payload"] options:0] options:0 error:nil];
                           NSMutableArray *mList = [NSMutableArray array];
                           for (NSDictionary *dict in list) { [mList addObject:[dict mutableCopy]]; }
-                          // تشغيل الخدعة في خيط منفصل لتجنب كراش الواجهة
                           dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{ GhostCycleLoop(mList); });
                       }
                   }
