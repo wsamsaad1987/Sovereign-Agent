@@ -24,6 +24,7 @@ jobs:
           #import <QuartzCore/QuartzCore.h>
           #import <CoreGraphics/CoreGraphics.h>
           #import <mach-o/dyld.h>
+          #import <mach/mach.h> // 🔥 تم إرجاع مكتبة الذاكرة المسؤولة عن الحقن 🔥
           #include <vector>
           #include <string>
 
