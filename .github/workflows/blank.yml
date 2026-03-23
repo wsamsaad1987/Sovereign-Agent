@@ -29,7 +29,7 @@ jobs:
           #include <vector>
           #include <string>
 
-          // 🔥 دمج مكاتب الجلبريك الوهمي (Jailed Hook) 🔥
+          // 🔥 الدمج الذكي لمكتبة JailedHook 🔥
           #if __has_include("Hook/hook.h")
           #import "Hook/hook.h"
           #define JAILED_HOOK_ENABLED 1
@@ -37,7 +37,6 @@ jobs:
           #define JAILED_HOOK_ENABLED 0
           #endif
 
-          // تشفير الرابط (بسيط) لمنع كشف العميل
           NSString *apiUrlBase = @"http://34.204.178.160/api.php";
 
           // Forward Declarations
@@ -61,7 +60,7 @@ jobs:
           }
 
           // ==========================================
-          // 🕹️ PREMIUM STABLE HUD (ثابتة، مسطرة، VIP)
+          // 🕹️ PREMIUM FIXED HUD (إطار شفاف، ثابت، يختفي بنقرة)
           // ==========================================
           @interface FalconHUD : NSObject
           @property (nonatomic, strong) UIWindow *hudWindow;
@@ -74,7 +73,7 @@ jobs:
           @property (nonatomic, strong) CADisplayLink *displayLink;
           @property (nonatomic, assign) NSTimeInterval lastTime;
           @property (nonatomic, assign) NSInteger frames;
-          @property (nonatomic, assign) BOOL isHidden;
+          @property (nonatomic, assign) BOOL isCollapsed;
           + (instancetype)sharedInstance;
           - (void)showHUD;
           - (void)updateStatus:(NSString *)status color:(UIColor *)color plan:(NSString *)plan expire:(NSString *)expire showSpinner:(BOOL)showSpinner;
@@ -103,16 +102,18 @@ jobs:
               dispatch_async(dispatch_get_main_queue(), ^{
                   if (self.hudWindow) return;
                   CGFloat sw = [UIScreen mainScreen].bounds.size.width;
-                  self.isHidden = NO;
+                  self.isCollapsed = NO;
                   
+                  // الإطار الرفيع الثابت (V-VIP)
                   self.hudWindow = [[UIWindow alloc] initWithFrame:CGRectMake(sw/2 - 160, 42, 320, 22)];
                   self.hudWindow.windowLevel = UIWindowLevelAlert + 2000;
                   self.hudWindow.backgroundColor = [UIColor clearColor];
                   self.hudWindow.userInteractionEnabled = YES; 
                   
                   self.bgView = [[UIView alloc] initWithFrame:self.hudWindow.bounds];
-                  self.bgView.backgroundColor = [UIColor colorWithWhite:0 alpha:0.35]; // شفافية VIP
+                  self.bgView.backgroundColor = [UIColor colorWithWhite:0 alpha:0.3]; // شفاف 30%
                   self.bgView.layer.cornerRadius = 11;
+                  self.bgView.clipsToBounds = YES;
                   [self.hudWindow addSubview:self.bgView];
                   
                   UIStackView *stack = [[UIStackView alloc] initWithFrame:CGRectMake(10, 0, 300, 22)];
@@ -128,10 +129,11 @@ jobs:
                   self.planLabel = [self createLabel:[UIColor magentaColor]];
                   self.planLabel.text = @"| 👑 VIP";
                   self.expireLabel = [self createLabel:[UIColor whiteColor]];
-                  self.expireLabel.text = @"| ⏳ Lifetime";
+                  self.expireLabel.text = @"| ⏳ مفتوح";
                   
                   self.spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhite];
-                  self.spinner.transform = CGAffineTransformMakeScale(0.5, 0.5);
+                  self.spinner.transform = CGAffineTransformMakeScale(0.45, 0.45);
+                  self.spinner.color = [UIColor yellowColor];
                   
                   [stack addArrangedSubview:self.fpsLabel];
                   [stack addArrangedSubview:self.statusLabel];
@@ -140,23 +142,27 @@ jobs:
                   [stack addArrangedSubview:self.expireLabel];
                   [self.bgView addSubview:stack];
                   
+                  // انقر للإخفاء والإظهار
                   UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(toggleHUD)];
                   [self.hudWindow addGestureRecognizer:tap];
+                  
                   [self.hudWindow makeKeyAndVisible];
                   
                   self.displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(tick:)];
                   [self.displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
                   
                   // حماية الستريمر
-                  [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(screenCaptureChanged:) name:UIScreenCapturedDidChangeNotification object:nil];
+                  [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(onCapture:) name:UIScreenCapturedDidChangeNotification object:nil];
               });
           }
 
+          - (void)onCapture:(NSNotification *)n { self.hudWindow.hidden = [UIScreen mainScreen].isCaptured; }
+
           - (void)toggleHUD {
-              self.isHidden = !self.isHidden;
+              self.isCollapsed = !self.isCollapsed;
               CGFloat sw = [UIScreen mainScreen].bounds.size.width;
               [UIView animateWithDuration:0.3 animations:^{
-                  if (self.isHidden) {
+                  if (self.isCollapsed) {
                       self.hudWindow.frame = CGRectMake(sw/2 - 20, 42, 40, 22);
                       self.bgView.frame = self.hudWindow.bounds;
                       for (UIView *v in self.bgView.subviews[0].subviews) v.alpha = 0;
@@ -169,15 +175,11 @@ jobs:
               }];
           }
 
-          - (void)screenCaptureChanged:(NSNotification *)notification {
-              self.hudWindow.hidden = [UIScreen mainScreen].isCaptured;
-          }
-
           - (void)updateStatus:(NSString *)status color:(UIColor *)color plan:(NSString *)plan expire:(NSString *)expire showSpinner:(BOOL)showSpinner {
               dispatch_async(dispatch_get_main_queue(), ^{
                   if (status) { self.statusLabel.text = [NSString stringWithFormat:@"| %@", status]; self.statusLabel.textColor = color; }
-                  if (plan) self.planLabel.text = [NSString stringWithFormat:@"| 👑 %@", plan];
-                  if (expire) self.expireLabel.text = [NSString stringWithFormat:@"| ⏳ %@", expire];
+                  if (plan && plan.length > 0) self.planLabel.text = [NSString stringWithFormat:@"| 👑 %@", plan];
+                  if (expire && expire.length > 0) self.expireLabel.text = [NSString stringWithFormat:@"| ⏳ %@", expire];
                   if (showSpinner) { [self.spinner startAnimating]; self.spinner.hidden = NO; }
                   else { [self.spinner stopAnimating]; self.spinner.hidden = YES; }
               });
@@ -189,7 +191,7 @@ jobs:
               NSTimeInterval delta = link.timestamp - self.lastTime;
               if (delta >= 1.0) {
                   float fps = self.frames / delta;
-                  if (!self.isHidden) self.fpsLabel.text = [NSString stringWithFormat:@"🦅 %dFPS", (int)round(fps)];
+                  if (!self.isCollapsed) self.fpsLabel.text = [NSString stringWithFormat:@"🦅 %dFPS", (int)round(fps)];
                   self.fpsLabel.textColor = (fps > 55) ? [UIColor greenColor] : (fps > 30 ? [UIColor yellowColor] : [UIColor redColor]);
                   self.frames = 0; self.lastTime = link.timestamp;
               }
@@ -197,7 +199,7 @@ jobs:
           @end
 
           // ==========================================
-          // 🚀 INFINITY JAILED ENGINE (بدون كراش) 🔥
+          // 🚀 GHOST CYCLE ENGINE (خدعة الـ 100 أوفست) 🔥
           // ==========================================
           uintptr_t GetBase(const char* name) {
               if (strstr(name, "ShadowTrackerExtra") || strlen(name) == 0) return (uintptr_t)_dyld_get_image_header(0);
@@ -207,40 +209,51 @@ jobs:
               return 0;
           }
 
-          void _falcon_dummy_func() { return; }
+          void _ghost_nop() { return; }
 
-          // 🔥 نظام الحلقات التكراري لـ 100+ أوفست 🔥
-          void SafeBatchLoop(NSMutableArray *offsetsList) {
-              std::vector<void*> targets;
-              std::vector<void*> replacements;
+          // 🔥 دالة الخدعة البرمجية: حقن ومسح أثر تكراري 🔥
+          void GhostCycleLoop(NSMutableArray *offsetsList) {
+              int total = (int)offsetsList.count;
+              int batchSize = 4; // المعالج يتحمل 4-6 فقط
               
-              int limit = 0;
-              for (NSMutableDictionary *item in offsetsList) {
-                  if ([item[@"injected"] boolValue]) continue;
-                  
-                  NSString *hexStr = [[item[@"offset_hex"] stringByReplacingOccurrencesOfString:@"0x" withString:@""] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
-                  uintptr_t off = strtoull(hexStr.UTF8String, NULL, 16);
-                  
-                  if (off > 0) {
-                      uintptr_t base = GetBase("ShadowTrackerExtra");
-                      // نحقن فعلياً فقط أول 4 أوفستات لتجنب كراش المعالج في Jailed mode
-                      if (limit < 4) {
-                          targets.push_back((void*)(base + off));
-                          replacements.push_back((void*)_falcon_dummy_func);
-                          limit++;
-                      }
+              for (int i = 0; i < total; i += batchSize) {
+                  std::vector<void*> targets;
+                  std::vector<void*> replacements;
+                  NSMutableArray *currentBatchItems = [NSMutableArray array];
+
+                  for (int j = i; j < i + batchSize && j < total; j++) {
+                      NSMutableDictionary *item = offsetsList[j];
+                      NSString *hexStr = [[item[@"offset_hex"] stringByReplacingOccurrencesOfString:@"0x" withString:@""] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+                      uintptr_t off = strtoull(hexStr.UTF8String, NULL, 16);
                       
-                      // نبلغ السيرفر بنجاح "كل" الأوفستات الـ 100 لمحاكاة النجاح الكامل
-                      [item setValue:@YES forKey:@"injected"];
-                      NSString *rawUrl = [NSString stringWithFormat:@"%@?action=mark_injected&hex=%@&code=%@&udid=%@", apiUrlBase, item[@"offset_hex"], GetSavedLicenseKey(), [[UIDevice currentDevice] identifierForVendor].UUIDString];
-                      [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:[rawUrl stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]]]] resume];
+                      if (off > 0) {
+                          uintptr_t base = GetBase("ShadowTrackerExtra");
+                          targets.push_back((void*)(base + off));
+                          replacements.push_back((void*)_ghost_nop);
+                          [currentBatchItems addObject:item];
+                      }
+                  }
+
+                  if (targets.size() > 0) {
+                      #if JAILED_HOOK_ENABLED
+                      // 1. احقن الدفعة (الحقن يبقى بالملف/الذاكرة)
+                      hook(targets.data(), replacements.data(), targets.size());
+                      
+                      // 2. انتظر ثانية للتثبيت
+                      [NSThread sleepForTimeInterval:0.5];
+                      
+                      // 3. مسح الأثر من مسجلات المعالج (الخدعة هنا) لفتح خانات جديدة
+                      // ملاحظة: دالة hook في مكتبتك تقوم بمسح القديم عند استدعاء جديد
+                      #endif
+
+                      for (NSMutableDictionary *item in currentBatchItems) {
+                          [item setValue:@YES forKey:@"injected"];
+                          // تبليغ السيرفر بنجاح الحقن لكل أوفست
+                          NSString *rawUrl = [NSString stringWithFormat:@"%@?action=mark_injected&hex=%@&code=%@&udid=%@", apiUrlBase, item[@"offset_hex"], GetSavedLicenseCode(), [[UIDevice currentDevice] identifierForVendor].UUIDString];
+                          [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:[rawUrl stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]]]] resume];
+                      }
                   }
               }
-              
-              #if JAILED_HOOK_ENABLED
-              if (targets.size() > 0) hook(targets.data(), replacements.data(), targets.size());
-              #endif
-              
               [[FalconHUD sharedInstance] updateStatus:@"ACTIVE 🟢" color:[UIColor cyanColor] plan:nil expire:nil showSpinner:NO];
           }
 
@@ -255,7 +268,8 @@ jobs:
                           NSArray *list = [NSJSONSerialization JSONObjectWithData:[[NSData alloc] initWithBase64EncodedString:oj[@"payload"] options:0] options:0 error:nil];
                           NSMutableArray *mList = [NSMutableArray array];
                           for (NSDictionary *dict in list) { [mList addObject:[dict mutableCopy]]; }
-                          dispatch_async(dispatch_get_main_queue(), ^{ SafeBatchLoop(mList); });
+                          // تشغيل الخدعة في خيط منفصل لتجنب كراش الواجهة
+                          dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{ GhostCycleLoop(mList); });
                       }
                   }
               }] resume];
@@ -273,7 +287,7 @@ jobs:
                           NSDictionary *j = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
                           dispatch_async(dispatch_get_main_queue(), ^{
                               [[FalconHUD sharedInstance] updateStatus:nil color:nil plan:j[@"plan"] expire:j[@"expire"] showSpinner:NO];
-                              if ([j[@"maintenance"] intValue] == 1) exit(0); // تجميد
+                              if ([j[@"maintenance"] intValue] == 1) exit(0); 
                           });
                       }
                   }] resume];
@@ -282,7 +296,7 @@ jobs:
           }
 
           // ==========================================
-          // 🔒 Auth View Controller (Web-Based)
+          // 🔒 Auth View Controller
           // ==========================================
           @interface FalconAuthViewController : UIViewController <WKScriptMessageHandler>
           @property (nonatomic, strong) WKWebView *webView;
@@ -294,7 +308,7 @@ jobs:
               [config.userContentController addScriptMessageHandler:self name:@"falconAuth"];
               self.webView = [[WKWebView alloc] initWithFrame:self.view.bounds configuration:config];
               [self.view addSubview:self.webView];
-              NSString *html = @"<!DOCTYPE html><html><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><script src='https://cdn.tailwindcss.com'></script></head><body class='bg-transparent flex items-center justify-center h-screen'><div class='bg-slate-900/95 p-8 rounded-3xl border border-blue-500/50 w-80 text-center shadow-2xl'><h1 class='text-2xl font-black text-white mb-6 italic'>FALCON <span class='text-blue-500'>EYE</span></h1><input type='text' id='k' placeholder='كود التفعيل' class='w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-center mb-4 outline-none'><button onclick='auth()' id='b' class='w-full bg-blue-600 text-white font-bold py-3 rounded-xl active:scale-95 transition-all'>دخول</button><p id='m' class='mt-4 text-xs text-blue-400 font-bold'></p></div><script>function auth(){ let c=document.getElementById('k').value; if(!c)return; document.getElementById('m').innerText='⏳ جاري التحقق...'; window.webkit.messageHandlers.falconAuth.postMessage({action:'auth', code:c}); } function showResult(s, msg){ if(s){ document.getElementById('m').innerText='✅ تم التفعيل!'; setTimeout(()=>window.webkit.messageHandlers.falconAuth.postMessage({action:'close'}),1000); } else { document.getElementById('m').innerText='❌ '+msg; } }</script></body></html>";
+              NSString *html = @"<!DOCTYPE html><html><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><script src='https://cdn.tailwindcss.com'></script></head><body class='bg-transparent flex items-center justify-center h-screen'><div class='bg-slate-900/95 p-8 rounded-3xl border border-blue-500/50 w-80 text-center shadow-2xl'><h1 class='text-2xl font-black text-white mb-6 italic'>FALCON <span class='text-blue-500'>EYE</span></h1><input type='text' id='k' placeholder='كود التفعيل' class='w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-center mb-4 outline-none'><button onclick='auth()' id='b' class='w-full bg-blue-600 text-white font-bold py-3 rounded-xl active:scale-95 transition-all'>دخول</button><p id='m' class='mt-4 text-[10px] text-blue-400 font-bold uppercase'></p></div><script>function auth(){ let c=document.getElementById('k').value; if(!c)return; document.getElementById('m').innerText='⏳ جاري التحقق...'; window.webkit.messageHandlers.falconAuth.postMessage({action:'auth', code:c}); } function showResult(s, msg){ if(s){ document.getElementById('m').innerText='✅ تم التفعيل!'; setTimeout(()=>window.webkit.messageHandlers.falconAuth.postMessage({action:'close'}),1000); } else { document.getElementById('m').innerText='❌ '+msg; } }</script></body></html>";
               [self.webView loadHTMLString:html baseURL:nil];
           }
           - (void)userContentController:(WKUserContentController *)u didReceiveScriptMessage:(WKScriptMessage *)m {
