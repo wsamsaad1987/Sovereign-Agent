@@ -45,7 +45,7 @@ jobs:
           NSString* GetSavedLicenseKey() { return [[NSUserDefaults standardUserDefaults] stringForKey:@"FalconEyeKey"]; }
 
           // ==========================================
-          // 👻 1. الإخفاء العميق (Deep Ghost Mode & Anti-Dump)
+          // 👻 1. الإخفاء العميق (Deep Ghost Mode)
           // ==========================================
           void ExecuteDeepGhostMode() {
               uint32_t count = _dyld_image_count();
@@ -67,19 +67,7 @@ jobs:
           }
 
           // ==========================================
-          // 🛡️ 2. درع مكافحة التصحيح (Anti-Debug Shield)
-          // ==========================================
-          typedef int (*ptrace_ptr_t)(int _request, pid_t _pid, caddr_t _addr, int _data);
-          void ExecuteAntiDebugShield() {
-              void* handle = dlopen("/usr/lib/system/libsystem_kernel.dylib", RTLD_GLOBAL | RTLD_NOW);
-              if (handle) {
-                  ptrace_ptr_t ptrace_ptr = (ptrace_ptr_t)dlsym(handle, "ptrace");
-                  if (ptrace_ptr) ptrace_ptr(31, 0, 0, 0); 
-              }
-          }
-
-          // ==========================================
-          // 🥷 3. منظومة V90 TITAN ANTI-CHEAT
+          // 🥷 2. منظومة V90 TITAN ANTI-CHEAT (تشتغل بالثانية صفر)
           // ==========================================
           typedef BOOL (*fileExistsAtPath_t)(id, SEL, NSString *);
           fileExistsAtPath_t orig_fileExistsAtPath;
@@ -120,6 +108,7 @@ jobs:
               method_setImplementation(class_getInstanceMethod([UIDevice class], @selector(systemVersion)), imp_implementationWithBlock(^NSString* (id self) { return @"17.4"; }));
           }
 
+          // 🔥 هذا يشتغل فوراً لمنع الباند 🔥
           void ActivateV90Titan() {
               SetupIdentitySpoof();       
               SetupSignatureSpoof();      
@@ -136,7 +125,7 @@ jobs:
                   return hk_canOpenURL(self, @selector(canOpenURL:), url);
               }));
               
-              NSLog(@"[Falcon] 🛡️ V90 Titan Anti-Cheat Activated (20s Delayed)");
+              NSLog(@"[Falcon] 🛡️ V90 Titan Anti-Cheat Activated (Zero Delay!)");
           }
 
           // ==========================================
@@ -177,8 +166,9 @@ jobs:
                   if (self.hudWindow) return;
                   
                   CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
+                  // 🔥 رفعنا مستوى النافذة حتى تظهر فوك كلشي باللعبة
                   self.hudWindow = [[PassthroughWindow alloc] initWithFrame:CGRectMake(0, 10, screenWidth, 30)];
-                  self.hudWindow.windowLevel = UIWindowLevelStatusBar + 100;
+                  self.hudWindow.windowLevel = UIWindowLevelAlert + 500;
                   self.hudWindow.backgroundColor = [UIColor clearColor];
                   self.hudWindow.userInteractionEnabled = YES; 
                   
@@ -258,7 +248,7 @@ jobs:
           @end
 
           // ==========================================
-          // 🔒 Auth View Controller (Native iOS UI - No WebKit)
+          // 🔒 Auth View Controller (Native iOS UI - C++)
           // ==========================================
           @interface FalconAuthViewController : UIViewController
           @property (nonatomic, strong) UITextField *keyInput;
@@ -269,24 +259,16 @@ jobs:
           @implementation FalconAuthViewController
           - (void)viewDidLoad {
               [super viewDidLoad];
-              
-              // خلفية شبه شفافة 85%
               self.view.backgroundColor = [UIColor colorWithWhite:0 alpha:0.85];
               
-              // الصندوق الزجاجي (Glass Box)
               UIView *glassBox = [[UIView alloc] init];
               glassBox.backgroundColor = [UIColor colorWithRed:10/255.0 green:15/255.0 blue:30/255.0 alpha:0.95];
               glassBox.layer.cornerRadius = 20;
               glassBox.layer.borderColor = [UIColor colorWithRed:59/255.0 green:130/255.0 blue:246/255.0 alpha:0.4].CGColor;
               glassBox.layer.borderWidth = 1.0;
-              glassBox.layer.shadowColor = [UIColor blackColor].CGColor;
-              glassBox.layer.shadowOpacity = 0.8;
-              glassBox.layer.shadowRadius = 20;
-              glassBox.layer.shadowOffset = CGSizeMake(0, 0);
               glassBox.translatesAutoresizingMaskIntoConstraints = NO;
               [self.view addSubview:glassBox];
               
-              // توسيط الصندوق
               [NSLayoutConstraint activateConstraints:@[
                   [glassBox.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
                   [glassBox.centerYAnchor constraintEqualToAnchor:self.view.centerYAnchor],
@@ -294,7 +276,6 @@ jobs:
                   [glassBox.heightAnchor constraintEqualToConstant:260]
               ]];
               
-              // العنوان
               UILabel *titleLbl = [[UILabel alloc] initWithFrame:CGRectMake(0, 20, 350, 40)];
               titleLbl.text = @"FALCON EYE";
               titleLbl.font = [UIFont italicSystemFontOfSize:30];
@@ -302,14 +283,6 @@ jobs:
               titleLbl.textAlignment = NSTextAlignmentCenter;
               [glassBox addSubview:titleLbl];
               
-              UILabel *subLbl = [[UILabel alloc] initWithFrame:CGRectMake(0, 55, 350, 20)];
-              subLbl.text = @"System Authentication";
-              subLbl.font = [UIFont boldSystemFontOfSize:11];
-              subLbl.textColor = [UIColor colorWithRed:96/255.0 green:165/255.0 blue:250/255.0 alpha:1.0];
-              subLbl.textAlignment = NSTextAlignmentCenter;
-              [glassBox addSubview:subLbl];
-              
-              // حقل الإدخال
               self.keyInput = [[UITextField alloc] initWithFrame:CGRectMake(25, 95, 300, 45)];
               self.keyInput.placeholder = @"أدخل كود التفعيل";
               self.keyInput.textColor = [UIColor whiteColor];
@@ -318,32 +291,25 @@ jobs:
               self.keyInput.layer.cornerRadius = 12;
               self.keyInput.layer.borderColor = [UIColor colorWithRed:59/255.0 green:130/255.0 blue:246/255.0 alpha:0.3].CGColor;
               self.keyInput.layer.borderWidth = 1;
-              self.keyInput.font = [UIFont boldSystemFontOfSize:14];
-              // تغيير لون الـ placeholder
               NSAttributedString *placeholderStr = [[NSAttributedString alloc] initWithString:@"أدخل كود التفعيل" attributes:@{NSForegroundColorAttributeName: [UIColor lightGrayColor]}];
               self.keyInput.attributedPlaceholder = placeholderStr;
               [glassBox addSubview:self.keyInput];
               
-              // زر اللصق
               UIButton *pasteBtn = [UIButton buttonWithType:UIButtonTypeSystem];
               pasteBtn.frame = CGRectMake(35, 102.5, 50, 30);
               [pasteBtn setTitle:@"لصق" forState:UIControlStateNormal];
               [pasteBtn setTitleColor:[UIColor colorWithRed:96/255.0 green:165/255.0 blue:250/255.0 alpha:1.0] forState:UIControlStateNormal];
-              pasteBtn.titleLabel.font = [UIFont boldSystemFontOfSize:11];
               pasteBtn.backgroundColor = [UIColor colorWithRed:37/255.0 green:99/255.0 blue:235/255.0 alpha:0.2];
               pasteBtn.layer.cornerRadius = 8;
               [pasteBtn addTarget:self action:@selector(pasteTapped) forControlEvents:UIControlEventTouchUpInside];
               [glassBox addSubview:pasteBtn];
               
-              // حالة التحميل (Label)
               self.statusLbl = [[UILabel alloc] initWithFrame:CGRectMake(0, 150, 350, 20)];
               self.statusLbl.text = @"";
               self.statusLbl.font = [UIFont boldSystemFontOfSize:13];
-              self.statusLbl.textColor = [UIColor colorWithRed:234/255.0 green:179/255.0 blue:8/255.0 alpha:1.0]; // أصفر
               self.statusLbl.textAlignment = NSTextAlignmentCenter;
               [glassBox addSubview:self.statusLbl];
               
-              // زر الدخول
               self.loginBtn = [UIButton buttonWithType:UIButtonTypeSystem];
               self.loginBtn.frame = CGRectMake(25, 185, 300, 50);
               [self.loginBtn setTitle:@"تفعيل الأداة" forState:UIControlStateNormal];
@@ -357,9 +323,7 @@ jobs:
 
           - (void)pasteTapped {
               NSString *clipboard = [UIPasteboard generalPasteboard].string;
-              if (clipboard) {
-                  self.keyInput.text = [clipboard stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-              }
+              if (clipboard) self.keyInput.text = [clipboard stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
           }
 
           - (void)loginTapped {
@@ -390,7 +354,7 @@ jobs:
                           self.statusLbl.textColor = [UIColor systemGreenColor];
                           self.statusLbl.text = @"✅ تم التفعيل بنجاح!";
                           
-                          // إغلاق النافذة فوراً والبدء
+                          // 🔥 الإغلاق الذري: أنيميشن سريع لإخفاء الشاشة وتفعيل اللمبات فوراً 🔥
                           dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 0.5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
                               extern void CloseAuthWindowAndStart();
                               CloseAuthWindowAndStart();
@@ -414,29 +378,33 @@ jobs:
           @end
 
           // ==========================================
-          // 🛡️ UI Manager & Maintenance Screen
+          // 🛡️ UI Manager
           // ==========================================
           @interface FalconUI : NSObject
           + (void)showAuthScreen;
-          + (void)showMaintenanceScreen:(NSString *)msg;
-          + (void)hideMaintenanceScreen;
           @end
 
           static UIWindow *authWindow = nil;
-          static UIViewController *maintenanceVC = nil;
 
           void CloseAuthWindowAndStart() {
-              if (authWindow) {
-                  authWindow.hidden = YES;
-                  authWindow = nil;
-              }
-              
-              // 1. جلب الأوفستات وتشغيل البايباس فوراً
-              FetchDataFromServer();
-              
-              // 2. تشغيل الحماية (V90 Titan) بعد 20 ثانية بالضبط!
-              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 20.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-                  ActivateV90Titan();
+              dispatch_async(dispatch_get_main_queue(), ^{
+                  if (authWindow) {
+                      // أنيميشن اختفاء يعيد السيطرة للعبة بشكل سلس
+                      [UIView animateWithDuration:0.3 animations:^{
+                          authWindow.alpha = 0.0;
+                      } completion:^(BOOL finished) {
+                          authWindow.hidden = YES;
+                          [authWindow resignKeyWindow]; // سحب السيطرة من النافذة وإعادتها للعبة
+                          authWindow = nil;
+                          
+                          // إظهار اللمبات فوراً بعد إغلاق اللوحة
+                          [[FalconHUD sharedInstance] showHUD];
+                          FetchDataFromServer();
+                      }];
+                  } else {
+                      [[FalconHUD sharedInstance] showHUD];
+                      FetchDataFromServer();
+                  }
               });
           }
 
@@ -454,55 +422,14 @@ jobs:
                   if (!window) window = [UIApplication sharedApplication].keyWindow;
 
                   if (window && window.rootViewController) {
-                      if ([window.rootViewController.presentedViewController isKindOfClass:[FalconAuthViewController class]]) return;
-                      
-                      FalconAuthViewController *authVC = [[FalconAuthViewController alloc] init];
-                      authVC.modalPresentationStyle = UIModalPresentationOverFullScreen;
-                      [window.rootViewController presentViewController:authVC animated:NO completion:nil];
+                      authWindow = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
+                      authWindow.windowLevel = UIWindowLevelAlert + 1000;
+                      authWindow.rootViewController = [[FalconAuthViewController alloc] init];
+                      [authWindow makeKeyAndVisible];
                   } else {
                       dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 0.5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
                           [self showAuthScreen];
                       });
-                  }
-              });
-          }
-
-          + (void)showMaintenanceScreen:(NSString *)msg {
-              dispatch_async(dispatch_get_main_queue(), ^{
-                  if (maintenanceVC) return;
-                  
-                  UIWindow *window = nil;
-                  if (@available(iOS 13.0, *)) {
-                      for (UIWindowScene* scene in [UIApplication sharedApplication].connectedScenes) {
-                          if (scene.activationState == UISceneActivationStateForegroundActive) { window = scene.windows.firstObject; break; }
-                      }
-                  }
-                  if (!window) window = [UIApplication sharedApplication].keyWindow;
-
-                  if (window && window.rootViewController) {
-                      maintenanceVC = [[UIViewController alloc] init];
-                      maintenanceVC.view.backgroundColor = [UIColor colorWithWhite:0 alpha:0.95];
-                      
-                      UILabel *lbl = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, window.bounds.size.width, 100)];
-                      lbl.center = maintenanceVC.view.center;
-                      lbl.textAlignment = NSTextAlignmentCenter;
-                      lbl.font = [UIFont boldSystemFontOfSize:22];
-                      lbl.textColor = [UIColor redColor];
-                      lbl.numberOfLines = 0;
-                      lbl.text = [NSString stringWithFormat:@"⚠️ SYSTEM FROZEN:\n%@", msg];
-                      
-                      [maintenanceVC.view addSubview:lbl];
-                      maintenanceVC.modalPresentationStyle = UIModalPresentationOverFullScreen;
-                      [window.rootViewController presentViewController:maintenanceVC animated:NO completion:nil];
-                  }
-              });
-          }
-
-          + (void)hideMaintenanceScreen {
-              dispatch_async(dispatch_get_main_queue(), ^{
-                  if (maintenanceVC) {
-                      [maintenanceVC dismissViewControllerAnimated:NO completion:nil];
-                      maintenanceVC = nil;
                   }
               });
           }
@@ -526,11 +453,6 @@ jobs:
                       [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:url] completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
                           if (d && !e) {
                               NSDictionary *json = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
-                              if ([json[@"maintenance"] isEqualToString:@"ON"]) {
-                                  [FalconUI showMaintenanceScreen:json[@"message"]];
-                              } else {
-                                  [FalconUI hideMaintenanceScreen];
-                              }
                               if ([json[@"security"] isEqualToString:@"RED"]) {
                                   [[FalconHUD sharedInstance] updateStatus:@"🔴 SECURITY ALERT: SYSTEM IS RED" color:[UIColor redColor]];
                               } else {
@@ -646,8 +568,9 @@ jobs:
                           if (d && !e) {
                               NSDictionary *j = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
                               if ([j[@"status"] isEqualToString:@"success"]) { 
-                                  // دخول ناجح: إخفاء الواجهة، وتشغيل الحماية بعد 20 ثانية
-                                  CloseAuthWindowAndStart();
+                                  // دخول تلقائي ناجح: بدون إظهار اللوحة، إظهار اللمبات فوراً
+                                  [[FalconHUD sharedInstance] showHUD];
+                                  FetchDataFromServer();
                                   return; 
                               }
                           }
@@ -662,8 +585,13 @@ jobs:
           }
 
           __attribute__((constructor)) static void init() {
+              // 1. الإخفاء العميق فوراً
               ExecuteDeepGhostMode(); 
-              ExecuteAntiDebugShield(); 
+              
+              // 2. تفعيل حماية V90 Titan (فوراً بالثانية صفر لمنع الباند)
+              ActivateV90Titan(); 
+              
+              // 3. فحص تسجيل الدخول
               dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
                   AutoLoginCheck();
               });
