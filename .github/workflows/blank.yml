@@ -20,7 +20,6 @@ jobs:
           cat <<'EOF' > FalconEye.mm
           #import <Foundation/Foundation.h>
           #import <UIKit/UIKit.h>
-          #import <WebKit/WebKit.h>
           #import <QuartzCore/QuartzCore.h>
           #import <CoreGraphics/CoreGraphics.h>
           #import <mach-o/dyld.h>
@@ -31,8 +30,6 @@ jobs:
           #include <vector>
           #include <map>
           #include <string>
-
-          #define RADAR_URL @"http://127.0.0.1/log"
 
           NSString *apiUrlBase = @"http://34.204.178.160/api.php";
 
@@ -46,11 +43,6 @@ jobs:
 
           void SaveLicenseKey(NSString* key) { [[NSUserDefaults standardUserDefaults] setObject:key forKey:@"FalconEyeKey"]; }
           NSString* GetSavedLicenseKey() { return [[NSUserDefaults standardUserDefaults] stringForKey:@"FalconEyeKey"]; }
-
-          NSString* EncodeB64(NSString* input) {
-              NSData* data = [input dataUsingEncoding:NSUTF8StringEncoding];
-              return [data base64EncodedStringWithOptions:0];
-          }
 
           // ==========================================
           // 👻 1. الإخفاء العميق (Deep Ghost Mode & Anti-Dump)
@@ -143,6 +135,8 @@ jobs:
               method_setImplementation(m_url, imp_implementationWithBlock(^BOOL (id self, NSURL *url) {
                   return hk_canOpenURL(self, @selector(canOpenURL:), url);
               }));
+              
+              NSLog(@"[Falcon] 🛡️ V90 Titan Anti-Cheat Activated (20s Delayed)");
           }
 
           // ==========================================
@@ -246,7 +240,6 @@ jobs:
                   BOOL success = NO;
                   
                   if (baseShadow > 0) {
-                      // استخدام NOP المعياري
                       success = Patch(baseShadow + 0x4b2d3d0, {0x1F, 0x20, 0x03, 0xD5}); 
                   }
                   
@@ -265,97 +258,193 @@ jobs:
           @end
 
           // ==========================================
-          // 🔒 Auth View Controller (Fast & Clean Login UI)
+          // 🔒 Auth View Controller (Native iOS UI - No WebKit)
           // ==========================================
-          @interface FalconAuthViewController : UIViewController <WKScriptMessageHandler>
-          @property (nonatomic, strong) WKWebView *webView;
+          @interface FalconAuthViewController : UIViewController
+          @property (nonatomic, strong) UITextField *keyInput;
+          @property (nonatomic, strong) UIButton *loginBtn;
+          @property (nonatomic, strong) UILabel *statusLbl;
           @end
 
           @implementation FalconAuthViewController
           - (void)viewDidLoad {
               [super viewDidLoad];
               
-              // خلفية شبه شفافة (عتمة 85%) حتى يشوف اللعبة تشتغل بالخلفية وما يحسها جامدة
+              // خلفية شبه شفافة 85%
               self.view.backgroundColor = [UIColor colorWithWhite:0 alpha:0.85];
               
-              WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
-              [config.userContentController addScriptMessageHandler:self name:@"falconAuth"];
+              // الصندوق الزجاجي (Glass Box)
+              UIView *glassBox = [[UIView alloc] init];
+              glassBox.backgroundColor = [UIColor colorWithRed:10/255.0 green:15/255.0 blue:30/255.0 alpha:0.95];
+              glassBox.layer.cornerRadius = 20;
+              glassBox.layer.borderColor = [UIColor colorWithRed:59/255.0 green:130/255.0 blue:246/255.0 alpha:0.4].CGColor;
+              glassBox.layer.borderWidth = 1.0;
+              glassBox.layer.shadowColor = [UIColor blackColor].CGColor;
+              glassBox.layer.shadowOpacity = 0.8;
+              glassBox.layer.shadowRadius = 20;
+              glassBox.layer.shadowOffset = CGSizeMake(0, 0);
+              glassBox.translatesAutoresizingMaskIntoConstraints = NO;
+              [self.view addSubview:glassBox];
               
-              self.webView = [[WKWebView alloc] initWithFrame:self.view.bounds configuration:config];
-              self.webView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-              self.webView.backgroundColor = [UIColor clearColor];
-              self.webView.opaque = NO;
-              self.webView.scrollView.scrollEnabled = NO;
-              self.webView.scrollView.bounces = NO;
+              // توسيط الصندوق
+              [NSLayoutConstraint activateConstraints:@[
+                  [glassBox.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
+                  [glassBox.centerYAnchor constraintEqualToAnchor:self.view.centerYAnchor],
+                  [glassBox.widthAnchor constraintEqualToConstant:350],
+                  [glassBox.heightAnchor constraintEqualToConstant:260]
+              ]];
               
-              [self.view addSubview:self.webView];
+              // العنوان
+              UILabel *titleLbl = [[UILabel alloc] initWithFrame:CGRectMake(0, 20, 350, 40)];
+              titleLbl.text = @"FALCON EYE";
+              titleLbl.font = [UIFont italicSystemFontOfSize:30];
+              titleLbl.textColor = [UIColor whiteColor];
+              titleLbl.textAlignment = NSTextAlignmentCenter;
+              [glassBox addSubview:titleLbl];
               
-              // 🔥 واجهة تسجيل دخول مباشرة وسريعة (بدون تأخير)
-              NSString *html = @"<!DOCTYPE html><html lang='ar' dir='rtl'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><script src='https://cdn.tailwindcss.com'></script><style>body { background: transparent; margin: 0; overflow: hidden; height: 100vh; display: flex; justify-content: center; align-items: center; font-family: 'Cairo', sans-serif; user-select: none; } .glass { background: rgba(10, 15, 30, 0.95); border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 20px; padding: 35px; width: 400px; box-shadow: 0 0 40px rgba(0,0,0,0.8); } </style></head><body><div class='glass' id='box'><h1 class='text-3xl font-black text-white italic mb-1 tracking-tighter text-center'>FALCON<span class='text-blue-500'>EYE</span></h1><p class='text-[10px] text-blue-400 font-bold tracking-widest mb-6 uppercase text-center'>System Authentication</p><div class='relative mb-5'><input type='text' id='k' placeholder='أدخل كود التفعيل' class='w-full bg-[#020617] border border-blue-500/30 rounded-xl p-4 text-white text-center outline-none focus:border-blue-500 transition-all font-bold text-sm tracking-widest' dir='ltr'><button onclick='pasteKey()' class='absolute left-2 top-1/2 -translate-y-1/2 bg-blue-600/20 hover:bg-blue-600/40 px-3 py-2 rounded-lg text-[10px] text-blue-400 font-bold uppercase transition-all'>لصق</button></div><div id='msg' class='text-center mb-3 min-h-[20px]'></div><button onclick='startAuth()' id='btn' class='w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-3.5 rounded-xl shadow-lg active:scale-95 transition-all text-sm tracking-widest'>تفعيل الأداة</button></div><script>function pasteKey(){ window.webkit.messageHandlers.falconAuth.postMessage({action:'paste'}); } function setKey(val){ document.getElementById('k').value = val; } function startAuth(){ var c = document.getElementById('k').value.trim(); if(!c) return; document.getElementById('btn').disabled = true; document.getElementById('btn').style.opacity = '0.5'; const msg = document.getElementById('msg'); msg.innerHTML = '<span style=\"color:#eab308; font-size:13px; font-weight:bold;\">⏳ جاري التفعيل...</span>'; window.webkit.messageHandlers.falconAuth.postMessage({action:'auth', code: c}); } function showResult(isSuccess, b64Message){ const msg = document.getElementById('msg'); if(isSuccess){ window.webkit.messageHandlers.falconAuth.postMessage({action:'closeWindow'}); } else { try { let err = decodeURIComponent(escape(window.atob(b64Message))); msg.innerHTML = '<span style=\"color:#ef4444; font-size:13px; font-weight:bold;\">❌ ' + err + '</span>'; } catch(e){ msg.innerHTML = '<span style=\"color:#ef4444; font-size:13px; font-weight:bold;\">❌ فشل التحقق</span>'; } setTimeout(() => { document.getElementById('btn').disabled = false; document.getElementById('btn').style.opacity = '1'; msg.innerHTML = ''; }, 3000); } }</script></body></html>";
+              UILabel *subLbl = [[UILabel alloc] initWithFrame:CGRectMake(0, 55, 350, 20)];
+              subLbl.text = @"System Authentication";
+              subLbl.font = [UIFont boldSystemFontOfSize:11];
+              subLbl.textColor = [UIColor colorWithRed:96/255.0 green:165/255.0 blue:250/255.0 alpha:1.0];
+              subLbl.textAlignment = NSTextAlignmentCenter;
+              [glassBox addSubview:subLbl];
               
-              [self.webView loadHTMLString:html baseURL:nil];
+              // حقل الإدخال
+              self.keyInput = [[UITextField alloc] initWithFrame:CGRectMake(25, 95, 300, 45)];
+              self.keyInput.placeholder = @"أدخل كود التفعيل";
+              self.keyInput.textColor = [UIColor whiteColor];
+              self.keyInput.textAlignment = NSTextAlignmentCenter;
+              self.keyInput.backgroundColor = [UIColor colorWithRed:2/255.0 green:6/255.0 blue:23/255.0 alpha:1.0];
+              self.keyInput.layer.cornerRadius = 12;
+              self.keyInput.layer.borderColor = [UIColor colorWithRed:59/255.0 green:130/255.0 blue:246/255.0 alpha:0.3].CGColor;
+              self.keyInput.layer.borderWidth = 1;
+              self.keyInput.font = [UIFont boldSystemFontOfSize:14];
+              // تغيير لون الـ placeholder
+              NSAttributedString *placeholderStr = [[NSAttributedString alloc] initWithString:@"أدخل كود التفعيل" attributes:@{NSForegroundColorAttributeName: [UIColor lightGrayColor]}];
+              self.keyInput.attributedPlaceholder = placeholderStr;
+              [glassBox addSubview:self.keyInput];
+              
+              // زر اللصق
+              UIButton *pasteBtn = [UIButton buttonWithType:UIButtonTypeSystem];
+              pasteBtn.frame = CGRectMake(35, 102.5, 50, 30);
+              [pasteBtn setTitle:@"لصق" forState:UIControlStateNormal];
+              [pasteBtn setTitleColor:[UIColor colorWithRed:96/255.0 green:165/255.0 blue:250/255.0 alpha:1.0] forState:UIControlStateNormal];
+              pasteBtn.titleLabel.font = [UIFont boldSystemFontOfSize:11];
+              pasteBtn.backgroundColor = [UIColor colorWithRed:37/255.0 green:99/255.0 blue:235/255.0 alpha:0.2];
+              pasteBtn.layer.cornerRadius = 8;
+              [pasteBtn addTarget:self action:@selector(pasteTapped) forControlEvents:UIControlEventTouchUpInside];
+              [glassBox addSubview:pasteBtn];
+              
+              // حالة التحميل (Label)
+              self.statusLbl = [[UILabel alloc] initWithFrame:CGRectMake(0, 150, 350, 20)];
+              self.statusLbl.text = @"";
+              self.statusLbl.font = [UIFont boldSystemFontOfSize:13];
+              self.statusLbl.textColor = [UIColor colorWithRed:234/255.0 green:179/255.0 blue:8/255.0 alpha:1.0]; // أصفر
+              self.statusLbl.textAlignment = NSTextAlignmentCenter;
+              [glassBox addSubview:self.statusLbl];
+              
+              // زر الدخول
+              self.loginBtn = [UIButton buttonWithType:UIButtonTypeSystem];
+              self.loginBtn.frame = CGRectMake(25, 185, 300, 50);
+              [self.loginBtn setTitle:@"تفعيل الأداة" forState:UIControlStateNormal];
+              [self.loginBtn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+              self.loginBtn.titleLabel.font = [UIFont boldSystemFontOfSize:15];
+              self.loginBtn.backgroundColor = [UIColor colorWithRed:37/255.0 green:99/255.0 blue:235/255.0 alpha:1.0];
+              self.loginBtn.layer.cornerRadius = 12;
+              [self.loginBtn addTarget:self action:@selector(loginTapped) forControlEvents:UIControlEventTouchUpInside];
+              [glassBox addSubview:self.loginBtn];
           }
 
-          - (void)userContentController:(WKUserContentController *)userContentController didReceiveScriptMessage:(WKScriptMessage *)message {
-              NSDictionary *data = (NSDictionary *)message.body;
-              NSString *action = data[@"action"];
-              
-              if ([action isEqualToString:@"paste"]) {
-                  NSString *p = [UIPasteboard generalPasteboard].string;
-                  if (p) {
-                      p = [p stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-                      [self.webView evaluateJavaScript:[NSString stringWithFormat:@"setKey('%@')", p] completionHandler:nil];
-                  }
-              } else if ([action isEqualToString:@"auth"]) {
-                  NSString *c = [data[@"code"] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-                  NSString *u = [[UIDevice currentDevice] identifierForVendor].UUIDString;
-                  
-                  NSString *rawUrl = [NSString stringWithFormat:@"%@?action=auth&code=%@&udid=%@", apiUrlBase, c, u];
-                  NSString *encodedUrl = [rawUrl stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
-                  
-                  [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:encodedUrl] completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
-                      dispatch_async(dispatch_get_main_queue(), ^{
-                          if (e || !d) { 
-                              NSString *errorMsg = @"لا يوجد اتصال بالسيرفر";
-                              [self.webView evaluateJavaScript:[NSString stringWithFormat:@"showResult(false, '%@')", EncodeB64(errorMsg)] completionHandler:nil];
-                              return; 
-                          }
-                          
-                          NSDictionary *json = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
-                          if ([json[@"status"] isEqualToString:@"success"]) {
-                              SaveLicenseKey(c);
-                              // نجاح تام: نخبر الواجهة بأن تغلق نفسها فوراً!
-                              [self.webView evaluateJavaScript:@"showResult(true, '')" completionHandler:nil];
-                          } else {
-                              NSString *errMsg = json[@"message"] ?: @"الكود غير صحيح";
-                              [self.webView evaluateJavaScript:[NSString stringWithFormat:@"showResult(false, '%@')", EncodeB64(errMsg)] completionHandler:nil];
-                          }
-                      });
-                  }] resume];
-              } else if ([action isEqualToString:@"closeWindow"]) {
-                  // 🔥 التدمير الفوري للنافذة: تختفي الشاشة واللعبة ترجع طبيعية 100%
-                  dispatch_async(dispatch_get_main_queue(), ^{
-                      [self dismissViewControllerAnimated:NO completion:^{
-                          ActivateV90Titan();
-                          FetchDataFromServer();
-                      }];
-                  });
+          - (void)pasteTapped {
+              NSString *clipboard = [UIPasteboard generalPasteboard].string;
+              if (clipboard) {
+                  self.keyInput.text = [clipboard stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
               }
+          }
+
+          - (void)loginTapped {
+              NSString *code = [self.keyInput.text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+              if (code.length == 0) return;
+              
+              self.loginBtn.enabled = NO;
+              self.loginBtn.alpha = 0.5;
+              self.statusLbl.textColor = [UIColor colorWithRed:234/255.0 green:179/255.0 blue:8/255.0 alpha:1.0];
+              self.statusLbl.text = @"⏳ جاري التفعيل...";
+              
+              NSString *udid = [[UIDevice currentDevice] identifierForVendor].UUIDString;
+              NSString *rawUrl = [NSString stringWithFormat:@"%@?action=auth&code=%@&udid=%@", apiUrlBase, code, udid];
+              NSString *encodedUrl = [rawUrl stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
+              
+              [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:encodedUrl] completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
+                  dispatch_async(dispatch_get_main_queue(), ^{
+                      if (e || !d) { 
+                          self.statusLbl.textColor = [UIColor systemRedColor];
+                          self.statusLbl.text = @"❌ لا يوجد اتصال بالسيرفر";
+                          [self resetLoginButton];
+                          return; 
+                      }
+                      
+                      NSDictionary *json = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
+                      if ([json[@"status"] isEqualToString:@"success"]) {
+                          SaveLicenseKey(code);
+                          self.statusLbl.textColor = [UIColor systemGreenColor];
+                          self.statusLbl.text = @"✅ تم التفعيل بنجاح!";
+                          
+                          // إغلاق النافذة فوراً والبدء
+                          dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 0.5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                              extern void CloseAuthWindowAndStart();
+                              CloseAuthWindowAndStart();
+                          });
+                      } else {
+                          self.statusLbl.textColor = [UIColor systemRedColor];
+                          self.statusLbl.text = [NSString stringWithFormat:@"❌ %@", json[@"message"] ?: @"الكود غير صحيح"];
+                          [self resetLoginButton];
+                      }
+                  });
+              }] resume];
+          }
+
+          - (void)resetLoginButton {
+              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                  self.loginBtn.enabled = YES;
+                  self.loginBtn.alpha = 1.0;
+                  self.statusLbl.text = @"";
+              });
           }
           @end
 
+          // ==========================================
+          // 🛡️ UI Manager & Maintenance Screen
+          // ==========================================
           @interface FalconUI : NSObject
           + (void)showAuthScreen;
           + (void)showMaintenanceScreen:(NSString *)msg;
           + (void)hideMaintenanceScreen;
           @end
 
+          static UIWindow *authWindow = nil;
           static UIViewController *maintenanceVC = nil;
+
+          void CloseAuthWindowAndStart() {
+              if (authWindow) {
+                  authWindow.hidden = YES;
+                  authWindow = nil;
+              }
+              
+              // 1. جلب الأوفستات وتشغيل البايباس فوراً
+              FetchDataFromServer();
+              
+              // 2. تشغيل الحماية (V90 Titan) بعد 20 ثانية بالضبط!
+              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 20.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                  ActivateV90Titan();
+              });
+          }
 
           @implementation FalconUI
           + (void)showAuthScreen {
-              // خدعة لتجنب تجميد اللعبة: ننتظر لحين تهيئة واجهة اللعبة الأصلية ثم نعرض اللوكن فوقها
               dispatch_async(dispatch_get_main_queue(), ^{
+                  if (authWindow) return;
+                  
                   UIWindow *window = nil;
                   if (@available(iOS 13.0, *)) {
                       for (UIWindowScene* scene in [UIApplication sharedApplication].connectedScenes) {
@@ -365,14 +454,12 @@ jobs:
                   if (!window) window = [UIApplication sharedApplication].keyWindow;
 
                   if (window && window.rootViewController) {
-                      // إذا كانت ظاهرة لا نعرضها مرة ثانية
                       if ([window.rootViewController.presentedViewController isKindOfClass:[FalconAuthViewController class]]) return;
                       
                       FalconAuthViewController *authVC = [[FalconAuthViewController alloc] init];
                       authVC.modalPresentationStyle = UIModalPresentationOverFullScreen;
                       [window.rootViewController presentViewController:authVC animated:NO completion:nil];
                   } else {
-                      // لم تكتمل اللعبة بعد، كرر الفحص بعد نصف ثانية
                       dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 0.5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
                           [self showAuthScreen];
                       });
@@ -559,8 +646,8 @@ jobs:
                           if (d && !e) {
                               NSDictionary *j = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
                               if ([j[@"status"] isEqualToString:@"success"]) { 
-                                  FetchDataFromServer();
-                                  ActivateV90Titan();
+                                  // دخول ناجح: إخفاء الواجهة، وتشغيل الحماية بعد 20 ثانية
+                                  CloseAuthWindowAndStart();
                                   return; 
                               }
                           }
@@ -589,7 +676,7 @@ jobs:
           -undefined dynamic_lookup \
           -miphoneos-version-min=12.0 -lobjc \
           -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
-          -framework Foundation -framework UIKit -framework WebKit \
+          -framework Foundation -framework UIKit \
           -framework QuartzCore -framework CoreGraphics \
           FalconEye.mm -o FalconEye.dylib
           
