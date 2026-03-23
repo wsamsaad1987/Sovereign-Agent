@@ -50,18 +50,17 @@ jobs:
           }
 
           // ==========================================
-          // 🥷 منظومة V90 TITAN ANTI-CHEAT (المستقرة)
+          // 🥷 1. منظومة V90 TITAN ANTI-CHEAT (المحسنة ضد الكراش)
           // ==========================================
-          void SilentLog(NSString *msg) {
-              dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), ^{
-                  NSLog(@"[Falcon V90] %@", msg);
-              });
-          }
-
           typedef BOOL (*fileExistsAtPath_t)(id, SEL, NSString *);
           fileExistsAtPath_t orig_fileExistsAtPath;
 
           BOOL hk_fileExistsAtPath(id self, SEL _cmd, NSString *path) {
+              // 🔥 حماية ضد كراش الـ (Nil Pointer) اللي كان يطفي اللعبة
+              if (!path || ![path isKindOfClass:[NSString class]]) {
+                  return orig_fileExistsAtPath(self, _cmd, path);
+              }
+              
               if ([path containsString:@"Cydia"] || [path containsString:@"Shadow"] || [path containsString:@"Imperial"] || [path containsString:@"libdobby"]) {
                   return NO;
               }
@@ -72,9 +71,13 @@ jobs:
           canOpenURL_t orig_canOpenURL;
 
           BOOL hk_canOpenURL(id self, SEL _cmd, NSURL *url) {
+              if (!url) return orig_canOpenURL(self, _cmd, url);
+              
               NSString *scheme = [url scheme];
-              if ([scheme containsString:@"cydia"] || [scheme containsString:@"filza"] || [scheme containsString:@"sileo"]) {
-                  return NO; 
+              if (scheme && [scheme isKindOfClass:[NSString class]]) {
+                  if ([scheme containsString:@"cydia"] || [scheme containsString:@"filza"] || [scheme containsString:@"sileo"]) {
+                      return NO; 
+                  }
               }
               return orig_canOpenURL(self, _cmd, url);
           }
@@ -97,7 +100,6 @@ jobs:
               method_setImplementation(class_getInstanceMethod([UIDevice class], @selector(systemVersion)), imp_implementationWithBlock(^NSString* (id self) { return @"17.4"; }));
           }
 
-          // 🔥 تشغيل الحماية (بدون كراش) 🔥
           void ActivateV90Titan() {
               SetupIdentitySpoof();       
               SetupSignatureSpoof();      
@@ -113,8 +115,6 @@ jobs:
               method_setImplementation(m_url, imp_implementationWithBlock(^BOOL (id self, NSURL *url) {
                   return hk_canOpenURL(self, @selector(canOpenURL:), url);
               }));
-              
-              SilentLog(@"✅ V90 Titan Anti-Cheat Activated Safely!");
           }
 
           // ==========================================
@@ -342,7 +342,6 @@ jobs:
                           self.statusLbl.textColor = [UIColor systemGreenColor];
                           self.statusLbl.text = @"✅ تم التفعيل بنجاح!";
                           
-                          // 🔥 الإغلاق الذري للنافذة وبدء العمليات بصمت
                           dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 0.5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
                               extern void CloseAuthWindowAndStart();
                               CloseAuthWindowAndStart();
@@ -436,9 +435,10 @@ jobs:
                       
                       NSString *code = GetSavedLicenseKey();
                       NSString *udid = [[UIDevice currentDevice] identifierForVendor].UUIDString;
-                      NSString *url = [NSString stringWithFormat:@"%@?action=check_status&code=%@&udid=%@", apiUrlBase, code, udid];
+                      NSString *rawUrl = [NSString stringWithFormat:@"%@?action=check_status&code=%@&udid=%@", apiUrlBase, code, udid];
+                      NSString *encodedUrl = [rawUrl stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
                       
-                      [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:url] completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
+                      [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:encodedUrl] completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
                           if (d && !e) {
                               NSDictionary *json = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
                               if ([json[@"security"] isEqualToString:@"RED"]) {
@@ -499,8 +499,11 @@ jobs:
                       uintptr_t off = strtoull([item[@"offset_hex"] UTF8String], NULL, 16);
                       if (Patch(base + off, {0x1F, 0x20, 0x03, 0xD5})) {
                           [item setValue:@YES forKey:@"injected"];
-                          NSString *url = [NSString stringWithFormat:@"%@?action=mark_injected&hex=%@&code=%@&udid=%@", apiUrlBase, item[@"offset_hex"], GetSavedLicenseKey(), [[UIDevice currentDevice] identifierForVendor].UUIDString];
-                          [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:url]] resume];
+                          
+                          // 🔥 تصليح التبليغ (URL Encoding): حتى السيرفر يفهم الرسالة وتضوي اللمبة!
+                          NSString *rawUrl = [NSString stringWithFormat:@"%@?action=mark_injected&hex=%@&code=%@&udid=%@", apiUrlBase, item[@"offset_hex"], GetSavedLicenseKey(), [[UIDevice currentDevice] identifierForVendor].UUIDString];
+                          NSString *encodedUrl = [rawUrl stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
+                          [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:encodedUrl]] resume];
                       } else {
                           allInjected = NO;
                       }
@@ -522,9 +525,10 @@ jobs:
 
               NSString *code = GetSavedLicenseKey();
               NSString *udid = [[UIDevice currentDevice] identifierForVendor].UUIDString;
-              NSString *url = [NSString stringWithFormat:@"%@?action=get_offsets&code=%@&udid=%@", apiUrlBase, code, udid];
+              NSString *rawUrl = [NSString stringWithFormat:@"%@?action=get_offsets&code=%@&udid=%@", apiUrlBase, code, udid];
+              NSString *encodedUrl = [rawUrl stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
               
-              [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:url] completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
+              [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:encodedUrl] completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
                   if (d) {
                       NSDictionary *oj = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
                       if (oj[@"payload"]) {
@@ -572,7 +576,7 @@ jobs:
           }
 
           __attribute__((constructor)) static void init() {
-              // ⏳ تأخير 1.5 ثانية قبل تشغيل الحماية واللوحة لضمان نهوض محرك اللعبة بالكامل ومنع الكراش الفوري
+              // مسحنا إخفاء الدايلب، وعدلنا الحماية حتى لا تكرش
               dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
                   ActivateV90Titan(); 
                   AutoLoginCheck();
