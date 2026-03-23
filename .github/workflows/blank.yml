@@ -27,11 +27,12 @@ jobs:
           #import <mach/mach.h>
           #import <objc/runtime.h>
           #include <libkern/OSCacheControl.h>
+          #include <dlfcn.h>
           #include <vector>
           #include <map>
           #include <string>
 
-          #define RADAR_URL @"http://127.0.0.1/log" // مسار وهمي لتجنب كراش الشبكة
+          #define RADAR_URL @"http://127.0.0.1/log"
 
           NSString *apiUrlBase = @"http://34.204.178.160/api.php";
 
@@ -41,42 +42,64 @@ jobs:
           void FetchDataFromServer(void);
           void StartHeartbeat(void);
           void AutoLoginCheck(void);
-          void ActivateV80(void);
+          void ActivateV90Titan(void);
 
           void SaveLicenseKey(NSString* key) { [[NSUserDefaults standardUserDefaults] setObject:key forKey:@"FalconEyeKey"]; }
           NSString* GetSavedLicenseKey() { return [[NSUserDefaults standardUserDefaults] stringForKey:@"FalconEyeKey"]; }
 
-          // دالة تشفير النصوص لمنع كراش الجافاسكريبت
           NSString* EncodeB64(NSString* input) {
               NSData* data = [input dataUsingEncoding:NSUTF8StringEncoding];
               return [data base64EncodedStringWithOptions:0];
           }
 
           // ==========================================
-          // 👻 إخفاء الدايلب من النظام (Ghost Mode)
+          // 👻 1. الإخفاء العميق (Deep Ghost Mode & Anti-Dump)
           // ==========================================
-          void HideMyDylib() {
+          void ExecuteDeepGhostMode() {
               uint32_t count = _dyld_image_count();
               for (uint32_t i = 0; i < count; i++) {
                   const char *name = _dyld_get_image_name(i);
                   if (name && strstr(name, "FalconEye")) {
-                      struct mach_header_64 *header = (struct mach_header_64 *)(_dyld_get_image_header(i));
                       mach_port_t task = mach_task_self();
-                      vm_protect(task, (vm_address_t)header, sizeof(uint32_t), FALSE, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY);
-                      header->magic = 0; // مسح رأس الملف لتعمية برامج فحص الذاكرة
-                      vm_protect(task, (vm_address_t)header, sizeof(uint32_t), FALSE, VM_PROT_READ | VM_PROT_EXECUTE);
-                      NSLog(@"[Falcon] 👻 Dylib hidden from memory scanners.");
+                      
+                      // أ. مسح رأس الملف بالكامل (يمنع سحب الدايلب من الذاكرة - Anti-Dump)
+                      struct mach_header_64 *header = (struct mach_header_64 *)(_dyld_get_image_header(i));
+                      vm_protect(task, (vm_address_t)header, 0x1000, FALSE, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY);
+                      memset((void*)header, 0, sizeof(struct mach_header_64));
+                      vm_protect(task, (vm_address_t)header, 0x1000, FALSE, VM_PROT_READ | VM_PROT_EXECUTE);
+                      
+                      // ب. مسح اسم ومسار الدايلب من سجل النظام (يمنع كشف الاسم)
+                      vm_protect(task, (vm_address_t)name, strlen(name), FALSE, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY);
+                      memset((void*)name, 0, strlen(name));
+                      vm_protect(task, (vm_address_t)name, strlen(name), FALSE, VM_PROT_READ);
+
+                      NSLog(@"[Falcon V90] 👻 Deep Ghost Mode: Trace Wiped!");
                       break;
                   }
               }
           }
 
           // ==========================================
-          // 🛡️ V80 IMPERIAL ANTI-CHEAT SYSTEM
+          // 🛡️ 2. درع مكافحة التصحيح (Anti-Debug Shield)
+          // ==========================================
+          typedef int (*ptrace_ptr_t)(int _request, pid_t _pid, caddr_t _addr, int _data);
+          void ExecuteAntiDebugShield() {
+              void* handle = dlopen("/usr/lib/system/libsystem_kernel.dylib", RTLD_GLOBAL | RTLD_NOW);
+              if (handle) {
+                  ptrace_ptr_t ptrace_ptr = (ptrace_ptr_t)dlsym(handle, "ptrace");
+                  if (ptrace_ptr) {
+                      ptrace_ptr(31, 0, 0, 0); // PT_DENY_ATTACH (يمنع أي أنتي شيت من الالتصاق باللعبة)
+                      NSLog(@"[Falcon V90] 🛡️ Anti-Attach Shield Enabled!");
+                  }
+              }
+          }
+
+          // ==========================================
+          // 🥷 3. منظومة V90 TITAN ANTI-CHEAT
           // ==========================================
           void SilentLog(NSString *msg) {
               dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), ^{
-                  NSLog(@"[Falcon V80] %@", msg);
+                  NSLog(@"[Falcon V90] %@", msg);
               });
           }
 
@@ -90,6 +113,17 @@ jobs:
               return orig_fileExistsAtPath(self, _cmd, path);
           }
 
+          typedef BOOL (*canOpenURL_t)(id, SEL, NSURL *);
+          canOpenURL_t orig_canOpenURL;
+
+          BOOL hk_canOpenURL(id self, SEL _cmd, NSURL *url) {
+              NSString *scheme = [url scheme];
+              if ([scheme containsString:@"cydia"] || [scheme containsString:@"filza"] || [scheme containsString:@"sileo"]) {
+                  return NO; // تعمية اللعبة عن برامج الجلبريك
+              }
+              return orig_canOpenURL(self, _cmd, url);
+          }
+
           void SetupSignatureSpoof() {
               Method m_info = class_getInstanceMethod([NSBundle class], @selector(infoDictionary));
               IMP orig_info = method_getImplementation(m_info);
@@ -101,13 +135,6 @@ jobs:
               }));
           }
 
-          void SetupReceiptSpoof() {
-              Method m_receipt = class_getInstanceMethod([NSBundle class], @selector(appStoreReceiptURL));
-              method_setImplementation(m_receipt, imp_implementationWithBlock(^NSURL* (id self) {
-                  return [NSURL fileURLWithPath:@"/System/Library/PrivateFrameworks/StoreServices.framework/receipt"];
-              }));
-          }
-
           void SetupIdentitySpoof() {
               method_setImplementation(class_getInstanceMethod([NSBundle class], @selector(bundleIdentifier)), imp_implementationWithBlock(^NSString* (id self) { return @"com.tencent.ig"; }));
               method_setImplementation(class_getInstanceMethod([UIDevice class], @selector(model)), imp_implementationWithBlock(^NSString* (id self) { return @"iPad"; }));
@@ -115,43 +142,148 @@ jobs:
               method_setImplementation(class_getInstanceMethod([UIDevice class], @selector(systemVersion)), imp_implementationWithBlock(^NSString* (id self) { return @"17.4"; }));
           }
 
-          void SetupClipboardProtection() {
-              Method m_pasteboard = class_getInstanceMethod([UIPasteboard class], @selector(string));
-              method_setImplementation(m_pasteboard, imp_implementationWithBlock(^NSString* (id self) {
-                  return @""; 
-              }));
-          }
-
-          void SetupHardwareSpoof() {
-              Method m_ram = class_getInstanceMethod([NSProcessInfo class], @selector(physicalMemory));
-              method_setImplementation(m_ram, imp_implementationWithBlock(^unsigned long long(id self) {
-                  return 17179869184ULL; 
-              }));
-              
-              Method m_cpu = class_getInstanceMethod([NSProcessInfo class], @selector(activeProcessorCount));
-              method_setImplementation(m_cpu, imp_implementationWithBlock(^NSUInteger(id self) {
-                  return 8; 
-              }));
-          }
-
-          void ActivateV80() {
+          void ActivateV90Titan() {
               SetupIdentitySpoof();       
               SetupSignatureSpoof();      
-              SetupReceiptSpoof();        
-              SetupClipboardProtection(); 
-              SetupHardwareSpoof();       
-
+              
+              // تفعيل درع الملفات
               Method m_file = class_getInstanceMethod([NSFileManager class], @selector(fileExistsAtPath:));
               orig_fileExistsAtPath = (fileExistsAtPath_t)method_getImplementation(m_file);
               method_setImplementation(m_file, imp_implementationWithBlock(^BOOL (id self, NSString *path) {
                   return hk_fileExistsAtPath(self, @selector(fileExistsAtPath:), path);
               }));
 
-              SilentLog(@"✅ V80 Active: Full Shield + Hardware Spoof + Ghost Mode");
+              // تفعيل درع الروابط
+              Method m_url = class_getInstanceMethod([UIApplication class], @selector(canOpenURL:));
+              orig_canOpenURL = (canOpenURL_t)method_getImplementation(m_url);
+              method_setImplementation(m_url, imp_implementationWithBlock(^BOOL (id self, NSURL *url) {
+                  return hk_canOpenURL(self, @selector(canOpenURL:), url);
+              }));
+
+              SilentLog(@"✅ V90 TITAN Active: Deep Ghost + Anti-Debug + System Spoof");
           }
 
           // ==========================================
-          // 🔒 Auth View Controller (VIP Login UI)
+          // 🪟 Passthrough Window (For HUD)
+          // ==========================================
+          @interface PassthroughWindow : UIWindow
+          @end
+          @implementation PassthroughWindow
+          - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
+              UIView *hitView = [super hitTest:point withEvent:event];
+              if (hitView == self || [hitView isKindOfClass:[UILabel class]]) return nil;
+              return hitView;
+          }
+          @end
+
+          // ==========================================
+          // 🕹️ HUD Status Bar & Bypass Button
+          // ==========================================
+          @interface FalconHUD : NSObject
+          @property (nonatomic, strong) PassthroughWindow *hudWindow;
+          @property (nonatomic, strong) UILabel *statusLabel;
+          @property (nonatomic, strong) UIButton *bypassButton;
+          + (instancetype)sharedInstance;
+          - (void)showHUD;
+          - (void)updateStatus:(NSString *)status color:(UIColor *)color;
+          @end
+
+          @implementation FalconHUD
+          + (instancetype)sharedInstance {
+              static FalconHUD *shared = nil;
+              static dispatch_once_t onceToken;
+              dispatch_once(&onceToken, ^{ shared = [[FalconHUD alloc] init]; });
+              return shared;
+          }
+
+          - (void)showHUD {
+              dispatch_async(dispatch_get_main_queue(), ^{
+                  if (self.hudWindow) return;
+                  
+                  CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
+                  self.hudWindow = [[PassthroughWindow alloc] initWithFrame:CGRectMake(0, 10, screenWidth, 30)];
+                  self.hudWindow.windowLevel = UIWindowLevelStatusBar + 100;
+                  self.hudWindow.backgroundColor = [UIColor clearColor];
+                  self.hudWindow.userInteractionEnabled = YES; 
+                  
+                  UIStackView *stack = [[UIStackView alloc] init];
+                  stack.axis = UILayoutConstraintAxisHorizontal;
+                  stack.spacing = 12;
+                  stack.alignment = UIStackViewAlignmentCenter;
+                  stack.translatesAutoresizingMaskIntoConstraints = NO;
+                  
+                  self.statusLabel = [[UILabel alloc] init];
+                  self.statusLabel.font = [UIFont boldSystemFontOfSize:11];
+                  self.statusLabel.textColor = [UIColor yellowColor];
+                  self.statusLabel.layer.shadowColor = [UIColor blackColor].CGColor;
+                  self.statusLabel.layer.shadowOffset = CGSizeMake(1, 1);
+                  self.statusLabel.layer.shadowOpacity = 1.0;
+                  self.statusLabel.layer.shadowRadius = 2.0;
+                  self.statusLabel.text = @"🟡 V90 TITAN INITIALIZING...";
+                  
+                  self.bypassButton = [UIButton buttonWithType:UIButtonTypeSystem];
+                  [self.bypassButton setTitle:@" BYPASS 🔴 " forState:UIControlStateNormal];
+                  [self.bypassButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+                  self.bypassButton.titleLabel.font = [UIFont boldSystemFontOfSize:11];
+                  self.bypassButton.backgroundColor = [UIColor colorWithWhite:0 alpha:0.6];
+                  self.bypassButton.layer.cornerRadius = 6;
+                  self.bypassButton.layer.borderWidth = 1;
+                  self.bypassButton.layer.borderColor = [UIColor redColor].CGColor;
+                  self.bypassButton.contentEdgeInsets = UIEdgeInsetsMake(3, 8, 3, 8);
+                  
+                  [self.bypassButton addTarget:self action:@selector(manualBypassTapped) forControlEvents:UIControlEventTouchUpInside];
+                  
+                  [stack addArrangedSubview:self.statusLabel];
+                  [stack addArrangedSubview:self.bypassButton];
+                  
+                  [self.hudWindow addSubview:stack];
+                  [stack.centerXAnchor constraintEqualToAnchor:self.hudWindow.centerXAnchor].active = YES;
+                  [stack.centerYAnchor constraintEqualToAnchor:self.hudWindow.centerYAnchor].active = YES;
+                  
+                  [self.hudWindow makeKeyAndVisible];
+              });
+          }
+
+          - (void)updateStatus:(NSString *)status color:(UIColor *)color {
+              dispatch_async(dispatch_get_main_queue(), ^{
+                  if (self.statusLabel) {
+                      self.statusLabel.text = status;
+                      self.statusLabel.textColor = color;
+                  }
+              });
+          }
+
+          - (void)manualBypassTapped {
+              [self.bypassButton setTitle:@" BYPASS ⏳ " forState:UIControlStateNormal];
+              self.bypassButton.layer.borderColor = [UIColor yellowColor].CGColor;
+              self.bypassButton.userInteractionEnabled = NO;
+              
+              dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+                  [NSThread sleepForTimeInterval:0.5]; 
+                  uintptr_t baseShadow = GetBase("ShadowTrackerExtra");
+                  BOOL success = NO;
+                  
+                  if (baseShadow > 0) {
+                      success = Patch(baseShadow + 0x4b2d3d0, {0x1F, 0x20, 0x03, 0xD5}); 
+                  }
+                  
+                  dispatch_async(dispatch_get_main_queue(), ^{
+                      if (success) {
+                          [self.bypassButton setTitle:@" BYPASS ✅ " forState:UIControlStateNormal];
+                          self.bypassButton.layer.borderColor = [UIColor greenColor].CGColor;
+                          NSLog(@"[Falcon V90] 🛡️ Target manually disabled!");
+                      } else {
+                          [self.bypassButton setTitle:@" BYPASS ❌ " forState:UIControlStateNormal];
+                          self.bypassButton.layer.borderColor = [UIColor redColor].CGColor;
+                          self.bypassButton.userInteractionEnabled = YES; 
+                      }
+                  });
+              });
+          }
+          @end
+
+          // ==========================================
+          // 🔒 Auth View Controller (V90 Fake Terminal)
           // ==========================================
           @interface FalconAuthViewController : UIViewController <WKScriptMessageHandler>
           @property (nonatomic, strong) WKWebView *webView;
@@ -174,8 +306,7 @@ jobs:
               
               [self.view addSubview:self.webView];
               
-              // 🔥 واجهة تسجيل الدخول المدمجة مع الأنيميشن السحري (الفيكة) 🔥
-              NSString *html = @"<!DOCTYPE html><html lang='en'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><script src='https://cdn.tailwindcss.com'></script><style>body { background: #000; margin: 0; overflow: hidden; height: 100vh; display: flex; justify-content: center; align-items: center; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; user-select: none; } .glass { background: rgba(10, 15, 30, 0.95); border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 20px; padding: 35px; width: 420px; box-shadow: 0 0 40px rgba(59,130,246,0.2); transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); min-height: 250px; display: flex; flex-direction: column; justify-content: center; } .log-box { font-size: 13px; color: #10b981; text-align: center; display: none; line-height: 2; text-shadow: 0 0 8px rgba(16,185,129,0.5); font-weight: bold; letter-spacing: 2px; } .fade-in-out { animation: fadeInOut 1.2s ease-in-out forwards; } @keyframes fadeInOut { 0% { opacity: 0; transform: translateY(10px); } 20% { opacity: 1; transform: translateY(0); } 80% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-10px); } } .glow-success { box-shadow: 0 0 60px rgba(16, 185, 129, 0.4); border-color: #10b981; }</style></head><body><div class='glass' id='box'><div id='content'><h1 class='text-3xl font-black text-white italic mb-1 tracking-tighter text-center'>FALCON<span class='text-blue-500'>EYE</span></h1><p class='text-[10px] text-blue-400 font-bold tracking-widest mb-6 uppercase text-center'>Advanced Security Protocol</p><div class='relative mb-5'><input type='text' id='k' placeholder='ENTER LICENSE KEY' class='w-full bg-[#020617] border border-blue-500/30 rounded-xl p-4 pl-16 text-white text-center outline-none focus:border-blue-500 transition-all font-bold text-sm tracking-widest'><button onclick='pasteKey()' class='absolute left-2 top-1/2 -translate-y-1/2 bg-blue-600/20 hover:bg-blue-600/40 px-3 py-2 rounded-lg text-[10px] text-blue-400 font-bold uppercase transition-all'>PASTE</button></div><button onclick='startAuth()' id='btn' class='w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-3.5 rounded-xl shadow-lg active:scale-95 transition-all text-sm uppercase tracking-widest'>INITIALIZE</button></div><div id='logs' class='log-box'></div></div><script>function pasteKey(){ window.webkit.messageHandlers.falconAuth.postMessage({action:'paste'}); } function setKey(val){ document.getElementById('k').value = val; } async function startAuth(){ var c = document.getElementById('k').value.trim(); if(!c) return; document.getElementById('content').style.display = 'none'; const logs = document.getElementById('logs'); logs.style.display = 'block'; const fakeLines = ['>_ CONNECTING TO [SECURE_SERVER]...', '>_ BYPASSING KERNEL SECURITY...', '>_ INJECTING V80 PAYLOAD...', '>_ VERIFYING LICENSE KEY...']; for(let line of fakeLines){ logs.innerHTML = '<div class=\"fade-in-out\">' + line + '</div>'; await new Promise(r => setTimeout(r, 1200)); } window.webkit.messageHandlers.falconAuth.postMessage({action:'auth', code: c}); } function showResult(isSuccess, b64Message){ const logs = document.getElementById('logs'); if(isSuccess){ document.getElementById('box').classList.add('glow-success'); logs.innerHTML = '<div style=\"color:#10b981; font-size:16px; animation: none; opacity: 1;\">[✅] SYSTEM ACTIVATED</div>'; } else { try { let msg = decodeURIComponent(escape(window.atob(b64Message))); logs.innerHTML = '<div style=\"color:#ef4444; animation: none; opacity: 1;\">[❌] ' + msg + '</div>'; } catch(e){ logs.innerHTML = '<div style=\"color:#ef4444; animation: none; opacity: 1;\">[❌] VERIFICATION FAILED</div>'; } setTimeout(() => { document.getElementById('content').style.display = 'block'; logs.style.display = 'none'; logs.innerHTML = ''; }, 2500); } }</script></body></html>";
+              NSString *html = @"<!DOCTYPE html><html lang='en'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><script src='https://cdn.tailwindcss.com'></script><style>body { background: #000; margin: 0; overflow: hidden; height: 100vh; display: flex; justify-content: center; align-items: center; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; user-select: none; } .glass { background: rgba(10, 15, 30, 0.95); border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 20px; padding: 35px; width: 420px; box-shadow: 0 0 40px rgba(59,130,246,0.2); transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); min-height: 250px; display: flex; flex-direction: column; justify-content: center; } .success-glow { background: rgba(16, 185, 129, 0.05); border-color: rgba(16, 185, 129, 0.6); box-shadow: 0 0 60px rgba(16, 185, 129, 0.3); transform: scale(1.02); } .log-box { font-size: 13px; color: #10b981; text-align: center; display: none; line-height: 2; text-shadow: 0 0 8px rgba(16,185,129,0.5); font-weight: bold; letter-spacing: 2px; } .fade-in-out { animation: fadeInOut 1s ease-in-out forwards; } @keyframes fadeInOut { 0% { opacity: 0; transform: translateY(10px); } 20% { opacity: 1; transform: translateY(0); } 80% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-10px); } }</style></head><body><div class='glass' id='box'><div id='content'><h1 class='text-3xl font-black text-white italic mb-1 tracking-tighter text-center'>FALCON<span class='text-blue-500'>EYE</span></h1><p class='text-[10px] text-blue-400 font-bold tracking-widest mb-6 uppercase text-center'>V90 Titan Framework</p><div class='relative mb-5'><input type='text' id='k' placeholder='ENTER LICENSE KEY' class='w-full bg-[#020617] border border-blue-500/30 rounded-xl p-4 pl-16 text-white text-center outline-none focus:border-blue-500 transition-all font-bold text-sm tracking-widest'><button onclick='pasteKey()' class='absolute left-2 top-1/2 -translate-y-1/2 bg-blue-600/20 hover:bg-blue-600/40 px-3 py-2 rounded-lg text-[10px] text-blue-400 font-bold uppercase transition-all'>PASTE</button></div><button onclick='startAuth()' id='btn' class='w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-3.5 rounded-xl shadow-lg active:scale-95 transition-all text-sm uppercase tracking-widest'>INJECT PAYLOAD</button></div><div id='logs' class='log-box'></div></div><script>function pasteKey(){ window.webkit.messageHandlers.falconAuth.postMessage({action:'paste'}); } function setKey(val){ document.getElementById('k').value = val; } async function startAuth(){ var c = document.getElementById('k').value.trim(); if(!c) return; document.getElementById('content').style.display = 'none'; const logs = document.getElementById('logs'); logs.style.display = 'block'; logs.innerHTML = ''; const fakeLines = ['>_ ENGAGING GHOST MODE...', '>_ SHIELDING PTRACE (ANTI-DEBUG)...', '>_ SPOOFING DEVICE HARDWARE...', '>_ SECURING CONNECTION...']; for(let line of fakeLines){ logs.innerHTML = '<div class=\"fade-in-out\">' + line + '</div>'; await new Promise(r => setTimeout(r, 1000)); } window.webkit.messageHandlers.falconAuth.postMessage({action:'auth', code: c}); } function showResult(isSuccess, b64Message){ const logs = document.getElementById('logs'); if(isSuccess){ document.getElementById('box').classList.add('success-glow'); logs.innerHTML = '<div style=\"color:#10b981; font-size:16px; animation: none; opacity: 1; margin-top:20px;\">[✅] SYSTEM ACTIVATED</div>'; } else { try { let msg = decodeURIComponent(escape(window.atob(b64Message))); logs.innerHTML = '<div style=\"color:#ef4444; animation: none; opacity: 1; margin-top:20px;\">[❌] ' + msg + '</div>'; } catch(e){ logs.innerHTML = '<div style=\"color:#ef4444; animation: none; opacity: 1; margin-top:20px;\">[❌] VERIFICATION FAILED</div>'; } setTimeout(() => { document.getElementById('content').style.display = 'block'; logs.style.display = 'none'; logs.innerHTML = ''; }, 2500); } }</script></body></html>";
               
               [self.webView loadHTMLString:html baseURL:nil];
           }
@@ -208,10 +339,10 @@ jobs:
                               SaveLicenseKey(c);
                               [self.webView evaluateJavaScript:@"showResult(true, '')" completionHandler:nil];
                               
-                              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+                              dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
                                   [self dismissViewControllerAnimated:YES completion:^{
                                       FetchDataFromServer();
-                                      ActivateV80(); // تفعيل المنظومة الإمبراطورية بعد نجاح الدخول
+                                      ActivateV90Titan(); 
                                   }];
                               });
                           } else {
@@ -240,7 +371,6 @@ jobs:
           + (void)showAuthScreen {
               dispatch_async(dispatch_get_main_queue(), ^{
                   if (authWindow) return;
-                  
                   authWindow = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
                   authWindow.windowLevel = UIWindowLevelAlert + 1000;
                   authWindow.rootViewController = [[FalconAuthViewController alloc] init];
@@ -251,15 +381,7 @@ jobs:
           + (void)showMaintenanceScreen:(NSString *)msg {
               dispatch_async(dispatch_get_main_queue(), ^{
                   if (maintenanceVC) return;
-                  
-                  UIWindow *window = nil;
-                  if (@available(iOS 13.0, *)) {
-                      for (UIWindowScene* scene in [UIApplication sharedApplication].connectedScenes) {
-                          if (scene.activationState == UISceneActivationStateForegroundActive) { window = scene.windows.firstObject; break; }
-                      }
-                  }
-                  if (!window) window = [UIApplication sharedApplication].keyWindow;
-
+                  UIWindow *window = [UIApplication sharedApplication].keyWindow;
                   if (window && window.rootViewController) {
                       maintenanceVC = [[UIViewController alloc] init];
                       maintenanceVC.view.backgroundColor = [UIColor colorWithWhite:0 alpha:0.95];
@@ -290,6 +412,42 @@ jobs:
           @end
 
           // ==========================================
+          // 🛰️ Heartbeat (Live Monitoring & Thread Camo)
+          // ==========================================
+          void StartHeartbeat() {
+              static dispatch_source_t timer = nil;
+              if (!timer) {
+                  timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
+                  dispatch_source_set_timer(timer, dispatch_time(DISPATCH_TIME_NOW, 5.0 * NSEC_PER_SEC), 10.0 * NSEC_PER_SEC, 1.0 * NSEC_PER_SEC);
+                  dispatch_source_set_event_handler(timer, ^{
+                      // 🥷 التمويه الخيطي (Thread Camouflage)
+                      [[NSThread currentThread] setName:@"com.apple.uikit.networking"];
+                      
+                      NSString *code = GetSavedLicenseKey();
+                      NSString *udid = [[UIDevice currentDevice] identifierForVendor].UUIDString;
+                      NSString *url = [NSString stringWithFormat:@"%@?action=check_status&code=%@&udid=%@", apiUrlBase, code, udid];
+                      
+                      [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:url] completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
+                          if (d && !e) {
+                              NSDictionary *json = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
+                              if ([json[@"maintenance"] isEqualToString:@"ON"]) {
+                                  [FalconUI showMaintenanceScreen:json[@"message"]];
+                              } else {
+                                  [FalconUI hideMaintenanceScreen];
+                              }
+                              if ([json[@"security"] isEqualToString:@"RED"]) {
+                                  [[FalconHUD sharedInstance] updateStatus:@"🔴 SECURITY ALERT: SYSTEM IS RED" color:[UIColor redColor]];
+                              } else {
+                                  [[FalconHUD sharedInstance] updateStatus:@"🟢 FALCON V90 | SECURE" color:[UIColor greenColor]];
+                              }
+                          }
+                      }] resume];
+                  });
+                  dispatch_resume(timer);
+              }
+          }
+
+          // ==========================================
           // 🚀 Safe COW Patching (No Jailbreak)
           // ==========================================
           uintptr_t GetBase(const char* name) {
@@ -302,10 +460,8 @@ jobs:
 
           bool Patch(uintptr_t addr, std::vector<uint8_t> data) {
               if (addr == 0 || data.empty()) return false;
-              
               mach_port_t task = mach_task_self();
               vm_size_t size = data.size();
-              
               vm_address_t page_start = addr & ~PAGE_MASK;
               vm_size_t page_size = PAGE_SIZE;
 
@@ -315,35 +471,28 @@ jobs:
               kr = vm_write(task, addr, (vm_offset_t)data.data(), (mach_msg_type_number_t)size);
               vm_protect(task, page_start, page_size, FALSE, VM_PROT_READ | VM_PROT_EXECUTE);
               sys_icache_invalidate((void*)addr, size);
-              
               return kr == KERN_SUCCESS;
           }
 
           // ==========================================
-          // 🚀 Injection Logic (Smart Array for Multiple Targets)
+          // 🚀 Injection Logic
           // ==========================================
           void SafeInjectLoop(NSMutableArray *offsetsList) {
               static int attempts = 0;
               if (attempts > 100) return; 
               
               BOOL allInjected = YES;
-
               for (NSMutableDictionary *item in offsetsList) {
                   if ([item[@"injected"] boolValue]) continue;
 
                   NSString *targetModule = item[@"target_module"];
-                  // في حال كان الهدف فارغاً من اللوحة نعتبره ShadowTrackerExtra
                   if (!targetModule || targetModule.length == 0) targetModule = @"ShadowTrackerExtra";
                   
                   uintptr_t base = GetBase([targetModule UTF8String]);
-                  
                   if (base > 0) {
                       uintptr_t off = strtoull([item[@"offset_hex"] UTF8String], NULL, 16);
-                      // 🔥 حقن بايتات التعطيل الجديدة (NOP ARM64: 1F 20 03 D5)
                       if (Patch(base + off, {0x1F, 0x20, 0x03, 0xD5})) {
                           [item setValue:@YES forKey:@"injected"];
-                          
-                          // إرسال تبليغ للسيرفر لإضاءة اللمبة الخضراء
                           NSString *url = [NSString stringWithFormat:@"%@?action=mark_injected&hex=%@&code=%@&udid=%@", apiUrlBase, item[@"offset_hex"], GetSavedLicenseKey(), [[UIDevice currentDevice] identifierForVendor].UUIDString];
                           [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:url]] resume];
                       } else {
@@ -363,6 +512,8 @@ jobs:
           }
 
           void FetchDataFromServer() {
+              StartHeartbeat();
+
               NSString *code = GetSavedLicenseKey();
               NSString *udid = [[UIDevice currentDevice] identifierForVendor].UUIDString;
               NSString *url = [NSString stringWithFormat:@"%@?action=get_offsets&code=%@&udid=%@", apiUrlBase, code, udid];
@@ -401,7 +552,7 @@ jobs:
                               if ([j[@"status"] isEqualToString:@"success"]) { 
                                   if (authWindow) { authWindow.hidden = YES; authWindow = nil; }
                                   FetchDataFromServer();
-                                  ActivateV80();
+                                  ActivateV90Titan();
                                   return; 
                               }
                           }
@@ -416,7 +567,8 @@ jobs:
           }
 
           __attribute__((constructor)) static void init() {
-              HideMyDylib(); // إخفاء الدايلب فوراً قبل بدء أي شيء
+              ExecuteDeepGhostMode(); // إخفاء الدايلب مساراً واسماً
+              ExecuteAntiDebugShield(); // إغلاق الباب بوجه المتطفلين (Anti-Debug)
               dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
                   AutoLoginCheck();
               });
