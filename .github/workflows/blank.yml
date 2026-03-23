@@ -327,11 +327,10 @@ jobs:
               if (addr == 0 || data.empty()) return false;
 
           #if JAILED_HOOK_ENABLED
-              // 🔥 إذا رفع المستخدم مجلد Hook، سيتم استخدام نقطة التوقف الوهمية بدلاً من الحقن 🔥
+              // 🔥 إذا تم تفعيل مجلد Hook، سيتم استخدام نقطة التوقف الوهمية بدلاً من الحقن المباشر 🔥
               void* target_addr = (void*)addr;
-              void* replace_func = (void*)_falcon_nop_function; // افتراضياً NOP/RET
+              void* replace_func = (void*)_falcon_nop_function; 
               
-              // إذا كان الحقن هو إرجاع True
               if (data.size() == 4 && data[0] == 0x20 && data[1] == 0x00 && data[2] == 0x80 && data[3] == 0xD2) { 
                   replace_func = (void*)_falcon_true_function;
               }
@@ -342,13 +341,12 @@ jobs:
               hook(targets, replacements, 1);
               return true;
           #else
-              // ⚠️ الطريقة الكلاسيكية (إذا لم يتم العثور على مجلد Hook) ستنجح مؤقتاً لتجنب التايم أوت
               mach_port_t task = mach_task_self();
               vm_address_t page_start = addr & ~PAGE_MASK;
               vm_size_t size = data.size();
               
               kern_return_t kr = vm_protect(task, page_start, PAGE_SIZE, FALSE, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY);
-              if (kr != KERN_SUCCESS) return true; // نتخطى الخطأ حتى يرسل للسيرفر تفعيل اللمبة
+              if (kr != KERN_SUCCESS) return true; // يتخطى الفشل لتشغيل التبليغ
 
               memcpy((void*)addr, data.data(), size);
               vm_protect(task, page_start, PAGE_SIZE, FALSE, VM_PROT_READ | VM_PROT_EXECUTE);
@@ -358,7 +356,7 @@ jobs:
           }
 
           // ==========================================
-          // 🚀 Injection Logic (Pure Injection & Forced Telemetry)
+          // 🚀 Injection Logic (Forced Telemetry)
           // ==========================================
           void SafeInjectLoop(NSMutableArray *offsetsList) {
               static int attempts = 0;
@@ -487,6 +485,17 @@ jobs:
 
       - name: Build Framework Payload
         run: |
+          # 🔥 إصلاح توافق مكتبات C مع C++ (تغيير كلمة new المحجوزة إلى new_ptr حتى لا يرفضها المترجم) 🔥
+          if [ -d "Hook" ]; then
+            python3 -c '
+          import os, re, glob
+          for f in glob.glob("Hook/*.[ch]"):
+              with open(f, "r") as file: content = file.read()
+              content = re.sub(r"\bnew\b", "new_ptr", content)
+              with open(f, "w") as file: file.write(content)
+          ' || true
+          fi
+
           # سحب أي ملفات C/C++ موجودة في مجلد Hook للمترجم
           HOOK_FILES=$(ls Hook/*.c Hook/*.cpp Hook/*.m Hook/*.mm 2>/dev/null | tr '\n' ' ')
           
