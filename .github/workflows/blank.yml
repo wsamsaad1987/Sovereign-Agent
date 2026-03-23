@@ -42,7 +42,7 @@ jobs:
 
           // Forward Declarations
           uintptr_t GetBase(const char* name);
-          bool PatchJailedUnlimited(uintptr_t addr, std::vector<uint8_t> data);
+          bool SmartPatch(uintptr_t addr, std::vector<uint8_t> data);
           void FetchDataFromServer(void);
           void StartHeartbeat(void);
           void AutoLoginCheck(void);
@@ -56,17 +56,12 @@ jobs:
               [[NSUserDefaults standardUserDefaults] setObject:key forKey:@"FalconEyeKey"]; 
           }
           NSString* GetSavedLicenseKey() { 
-              if (g_licenseCode && g_licenseCode.length > 0) return g_licenseCode;
+              if (g_licenseCode.length > 0) return g_licenseCode;
               return [[NSUserDefaults standardUserDefaults] stringForKey:@"FalconEyeKey"] ?: @""; 
           }
 
-          NSString* EncodeB64(NSString* input) {
-              NSData* data = [input dataUsingEncoding:NSUTF8StringEncoding];
-              return [data base64EncodedStringWithOptions:0];
-          }
-
           // ==========================================
-          // 🕹️ PREMIUM FIXED THIN HUD (إطار شفاف، مسطر، يختفي بنقرة)
+          // 🕹️ PREMIUM THIN HUD (ثابتة، مسطرة، تظهر معلومات الاشتراك)
           // ==========================================
           @interface FalconHUD : NSObject
           @property (nonatomic, strong) UIWindow *hudWindow;
@@ -76,12 +71,10 @@ jobs:
           @property (nonatomic, strong) UILabel *planLabel;
           @property (nonatomic, strong) UILabel *expireLabel;
           @property (nonatomic, strong) UIActivityIndicatorView *spinner;
-          
           @property (nonatomic, strong) CADisplayLink *displayLink;
           @property (nonatomic, assign) NSTimeInterval lastTime;
           @property (nonatomic, assign) NSInteger frames;
-          @property (nonatomic, assign) BOOL isCollapsed;
-          
+          @property (nonatomic, assign) BOOL isHidden;
           + (instancetype)sharedInstance;
           - (void)showHUD;
           - (void)updateStatus:(NSString *)status color:(UIColor *)color plan:(NSString *)plan expire:(NSString *)expire showSpinner:(BOOL)showSpinner;
@@ -109,20 +102,15 @@ jobs:
           - (void)showHUD {
               dispatch_async(dispatch_get_main_queue(), ^{
                   if (self.hudWindow) return;
-                  
                   CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
-                  self.isCollapsed = NO;
-                  
-                  // تصميم الشريط النحيف جداً (ارتفاع 22)
                   self.hudWindow = [[UIWindow alloc] initWithFrame:CGRectMake(screenWidth/2 - 160, 42, 320, 22)];
                   self.hudWindow.windowLevel = UIWindowLevelAlert + 2000;
                   self.hudWindow.backgroundColor = [UIColor clearColor];
                   self.hudWindow.userInteractionEnabled = YES; 
                   
                   self.bgView = [[UIView alloc] initWithFrame:self.hudWindow.bounds];
-                  self.bgView.backgroundColor = [UIColor colorWithWhite:0 alpha:0.35]; // شفافية 30%
+                  self.bgView.backgroundColor = [UIColor colorWithWhite:0 alpha:0.3];
                   self.bgView.layer.cornerRadius = 11;
-                  self.bgView.clipsToBounds = YES;
                   [self.hudWindow addSubview:self.bgView];
                   
                   UIStackView *stack = [[UIStackView alloc] initWithFrame:CGRectMake(10, 0, 300, 22)];
@@ -133,19 +121,15 @@ jobs:
                   
                   self.fpsLabel = [self createLabel:[UIColor greenColor]];
                   self.fpsLabel.text = @"🦅 60FPS";
-                  
                   self.statusLabel = [self createLabel:[UIColor yellowColor]];
                   self.statusLabel.text = @"| WAITING";
-                  
                   self.planLabel = [self createLabel:[UIColor magentaColor]];
                   self.planLabel.text = @"| 👑 VIP";
-                  
                   self.expireLabel = [self createLabel:[UIColor whiteColor]];
-                  self.expireLabel.text = @"| ⏳ مفتوح";
+                  self.expireLabel.text = @"| ⏳ Lifetime";
                   
                   self.spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhite];
                   self.spinner.transform = CGAffineTransformMakeScale(0.5, 0.5);
-                  self.spinner.color = [UIColor yellowColor];
                   
                   [stack addArrangedSubview:self.fpsLabel];
                   [stack addArrangedSubview:self.statusLabel];
@@ -154,10 +138,8 @@ jobs:
                   [stack addArrangedSubview:self.expireLabel];
                   [self.bgView addSubview:stack];
                   
-                  // نقرة واحدة للإخفاء والإظهار
                   UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(toggleHUD)];
                   [self.hudWindow addGestureRecognizer:tap];
-                  
                   [self.hudWindow makeKeyAndVisible];
                   
                   self.displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(tick:)];
@@ -166,16 +148,16 @@ jobs:
           }
 
           - (void)toggleHUD {
-              self.isCollapsed = !self.isCollapsed;
-              CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
+              self.isHidden = !self.isHidden;
+              CGFloat sw = [UIScreen mainScreen].bounds.size.width;
               [UIView animateWithDuration:0.3 animations:^{
-                  if (self.isCollapsed) {
-                      self.hudWindow.frame = CGRectMake(screenWidth/2 - 20, 42, 40, 22);
+                  if (self.isHidden) {
+                      self.hudWindow.frame = CGRectMake(sw/2 - 20, 42, 40, 22);
                       self.bgView.frame = self.hudWindow.bounds;
                       for (UIView *v in self.bgView.subviews[0].subviews) v.alpha = 0;
                       self.fpsLabel.alpha = 1; self.fpsLabel.text = @"🦅";
                   } else {
-                      self.hudWindow.frame = CGRectMake(screenWidth/2 - 160, 42, 320, 22);
+                      self.hudWindow.frame = CGRectMake(sw/2 - 160, 42, 320, 22);
                       self.bgView.frame = self.hudWindow.bounds;
                       for (UIView *v in self.bgView.subviews[0].subviews) v.alpha = 1;
                   }
@@ -184,15 +166,11 @@ jobs:
 
           - (void)updateStatus:(NSString *)status color:(UIColor *)color plan:(NSString *)plan expire:(NSString *)expire showSpinner:(BOOL)showSpinner {
               dispatch_async(dispatch_get_main_queue(), ^{
-                  if (self.statusLabel) {
-                      self.statusLabel.text = [NSString stringWithFormat:@"| %@", status];
-                      self.statusLabel.textColor = color;
-                      if (plan) self.planLabel.text = [NSString stringWithFormat:@"| 👑 %@", plan];
-                      if (expire) self.expireLabel.text = [NSString stringWithFormat:@"| ⏳ %@", expire];
-                      
-                      if (showSpinner) { [self.spinner startAnimating]; self.spinner.hidden = NO; }
-                      else { [self.spinner stopAnimating]; self.spinner.hidden = YES; }
-                  }
+                  if (status) { self.statusLabel.text = [NSString stringWithFormat:@"| %@", status]; self.statusLabel.textColor = color; }
+                  if (plan) self.planLabel.text = [NSString stringWithFormat:@"| 👑 %@", plan];
+                  if (expire) self.expireLabel.text = [NSString stringWithFormat:@"| ⏳ %@", expire];
+                  if (showSpinner) { [self.spinner startAnimating]; self.spinner.hidden = NO; }
+                  else { [self.spinner stopAnimating]; self.spinner.hidden = YES; }
               });
           }
 
@@ -202,15 +180,14 @@ jobs:
               NSTimeInterval delta = link.timestamp - self.lastTime;
               if (delta >= 1.0) {
                   float fps = self.frames / delta;
-                  if (!self.isCollapsed) self.fpsLabel.text = [NSString stringWithFormat:@"🦅 %dFPS", (int)round(fps)];
-                  self.fpsLabel.textColor = (fps > 50) ? [UIColor greenColor] : (fps > 30 ? [UIColor yellowColor] : [UIColor redColor]);
+                  if (!self.isHidden) self.fpsLabel.text = [NSString stringWithFormat:@"🦅 %dFPS", (int)round(fps)];
                   self.frames = 0; self.lastTime = link.timestamp;
               }
           }
           @end
 
           // ==========================================
-          // 🚀 UNLIMITED PATCHER ENGINE (100+ OFFSETS) 🔥
+          // 🚀 SMART HYBRID PATCHER (Anti-Crash) 🔥
           // ==========================================
           extern "C" kern_return_t vm_remap(vm_map_t, vm_address_t*, vm_size_t, vm_address_t, int, vm_map_t, vm_address_t, boolean_t, vm_prot_t*, vm_prot_t*, vm_inherit_t);
 
@@ -222,22 +199,36 @@ jobs:
               return 0;
           }
 
-          // 🔥 دالة الحقن العظيمة: تسمح بحقن آلاف الأوفستات بدون كراش وبدون ليميت 🔥
-          bool PatchJailedUnlimited(uintptr_t addr, std::vector<uint8_t> data) {
+          // 🔥 دالة الحقن الذكية: تفحص البيئة وتمنع كراش الجلبريك 🔥
+          bool SmartPatch(uintptr_t addr, std::vector<uint8_t> data) {
               if (addr == 0 || data.empty()) return false;
+              
+              // فحص وجود سيديا (إشارة للجلبريك)
+              BOOL isJailbroken = [[NSFileManager defaultManager] fileExistsAtPath:@"/Applications/Cydia.app"];
+              
+              if (isJailbroken) {
+                  // إذا جلبريك: نستخدم الطريقة المباشرة والآمنة
+                  mach_port_t task = mach_task_self();
+                  vm_address_t page_start = addr & ~PAGE_MASK;
+                  if (vm_protect(task, page_start, PAGE_SIZE, FALSE, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY) == KERN_SUCCESS) {
+                      memcpy((void*)addr, data.data(), data.size());
+                      vm_protect(task, page_start, PAGE_SIZE, FALSE, VM_PROT_READ | VM_PROT_EXECUTE);
+                      __builtin___clear_cache((char*)addr, (char*)addr + data.size());
+                      return true;
+                  }
+              }
+
+              // إذا بدون جلبريك: نستخدم Remap لتخطي حماية أبل
               mach_port_t task = mach_task_self();
               vm_address_t page_start = addr & ~PAGE_MASK;
-              vm_size_t page_size = PAGE_SIZE;
-
               vm_address_t new_page = 0;
-              if (vm_allocate(task, &new_page, page_size, VM_FLAGS_ANYWHERE) != KERN_SUCCESS) return false;
-              memcpy((void*)new_page, (void*)page_start, page_size);
+              if (vm_allocate(task, &new_page, PAGE_SIZE, VM_FLAGS_ANYWHERE) != KERN_SUCCESS) return false;
+              memcpy((void*)new_page, (void*)page_start, PAGE_SIZE);
               memcpy((void*)(new_page + (addr - page_start)), data.data(), data.size());
-              vm_protect(task, new_page, page_size, FALSE, VM_PROT_READ | VM_PROT_EXECUTE);
-
+              vm_protect(task, new_page, PAGE_SIZE, FALSE, VM_PROT_READ | VM_PROT_EXECUTE);
               vm_prot_t c, m;
               vm_address_t dest = page_start;
-              if (vm_remap(task, &dest, page_size, 0, VM_FLAGS_OVERWRITE, task, new_page, TRUE, &c, &m, VM_INHERIT_SHARE) == KERN_SUCCESS) {
+              if (vm_remap(task, &dest, PAGE_SIZE, 0, VM_FLAGS_OVERWRITE, task, new_page, TRUE, &c, &m, VM_INHERIT_SHARE) == KERN_SUCCESS) {
                   __builtin___clear_cache((char*)addr, (char*)addr + data.size());
                   return true;
               }
@@ -245,6 +236,7 @@ jobs:
           }
 
           void SafeInjectLoop(NSMutableArray *offsetsList) {
+              int count = 0;
               for (NSMutableDictionary *item in offsetsList) {
                   if ([item[@"injected"] boolValue]) continue;
                   
@@ -255,10 +247,10 @@ jobs:
                       NSString *hexStr = [item[@"offset_hex"] stringByReplacingOccurrencesOfString:@"0x" withString:@""];
                       uintptr_t off = strtoull(hexStr.UTF8String, NULL, 16);
                       
-                      // حقن الكود (مثلاً NOP 0x1F2003D5)
-                      if (PatchJailedUnlimited(base + off, {0x1F, 0x20, 0x03, 0xD5})) {
+                      if (SmartPatch(base + off, {0x1F, 0x20, 0x03, 0xD5})) {
                           [item setValue:@YES forKey:@"injected"];
-                          // تبليغ السيرفر بنجاح الحقن
+                          count++;
+                          // تبليغ السيرفر
                           NSString *rawUrl = [NSString stringWithFormat:@"%@?action=mark_injected&hex=%@&code=%@&udid=%@", apiUrlBase, item[@"offset_hex"], GetSavedLicenseKey(), [[UIDevice currentDevice] identifierForVendor].UUIDString];
                           [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:[rawUrl stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]]]] resume];
                       }
@@ -270,7 +262,6 @@ jobs:
           void FetchDataFromServer() {
               [[FalconHUD sharedInstance] showHUD];
               [[FalconHUD sharedInstance] updateStatus:@"SYNCING 🟡" color:[UIColor yellowColor] plan:nil expire:nil showSpinner:YES];
-
               NSString *rawUrl = [NSString stringWithFormat:@"%@?action=get_offsets&code=%@&udid=%@", apiUrlBase, GetSavedLicenseKey(), [[UIDevice currentDevice] identifierForVendor].UUIDString];
               [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:[rawUrl stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]]] completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
                   if (d) {
@@ -297,7 +288,7 @@ jobs:
                           NSDictionary *j = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
                           dispatch_async(dispatch_get_main_queue(), ^{
                               [[FalconHUD sharedInstance] updateStatus:nil color:nil plan:j[@"plan"] expire:j[@"expire"] showSpinner:NO];
-                              if ([j[@"maintenance"] intValue] == 1) exit(0); // تجميد النظام
+                              if ([j[@"maintenance"] intValue] == 1) exit(0);
                           });
                       }
                   }] resume];
@@ -361,7 +352,6 @@ jobs:
 
       - name: Build Framework Payload
         run: |
-          # إصلاح ملفات الهوك قبل البناء
           if [ -d "Hook" ]; then
             python3 -c '
           import os, re, glob
@@ -371,9 +361,7 @@ jobs:
               with open(f, "w") as file: file.write(content)
           ' || true
           fi
-
           HOOK_FILES=$(ls Hook/*.c Hook/*.cpp Hook/*.m Hook/*.mm 2>/dev/null | tr '\n' ' ')
-          
           clang++ -dynamiclib -arch arm64 -x objective-c++ -std=c++17 -fobjc-arc \
           -undefined dynamic_lookup \
           -miphoneos-version-min=12.0 -lobjc \
@@ -381,7 +369,6 @@ jobs:
           -framework Foundation -framework UIKit -framework WebKit \
           -framework QuartzCore -framework CoreGraphics \
           FalconEye.mm $HOOK_FILES -o FalconEye.dylib
-          
           if [ -f FalconEye.dylib ]; then strip -x FalconEye.dylib; else exit 1; fi
 
       - name: Upload Package
