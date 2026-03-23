@@ -50,17 +50,12 @@ jobs:
           }
 
           // ==========================================
-          // 🥷 1. منظومة V90 TITAN ANTI-CHEAT (المحسنة ضد الكراش)
+          // 🥷 1. منظومة V90 TITAN ANTI-CHEAT
           // ==========================================
           typedef BOOL (*fileExistsAtPath_t)(id, SEL, NSString *);
           fileExistsAtPath_t orig_fileExistsAtPath;
 
           BOOL hk_fileExistsAtPath(id self, SEL _cmd, NSString *path) {
-              // 🔥 حماية ضد كراش الـ (Nil Pointer) اللي كان يطفي اللعبة
-              if (!path || ![path isKindOfClass:[NSString class]]) {
-                  return orig_fileExistsAtPath(self, _cmd, path);
-              }
-              
               if ([path containsString:@"Cydia"] || [path containsString:@"Shadow"] || [path containsString:@"Imperial"] || [path containsString:@"libdobby"]) {
                   return NO;
               }
@@ -71,13 +66,9 @@ jobs:
           canOpenURL_t orig_canOpenURL;
 
           BOOL hk_canOpenURL(id self, SEL _cmd, NSURL *url) {
-              if (!url) return orig_canOpenURL(self, _cmd, url);
-              
               NSString *scheme = [url scheme];
-              if (scheme && [scheme isKindOfClass:[NSString class]]) {
-                  if ([scheme containsString:@"cydia"] || [scheme containsString:@"filza"] || [scheme containsString:@"sileo"]) {
-                      return NO; 
-                  }
+              if ([scheme containsString:@"cydia"] || [scheme containsString:@"filza"] || [scheme containsString:@"sileo"]) {
+                  return NO; 
               }
               return orig_canOpenURL(self, _cmd, url);
           }
@@ -139,6 +130,7 @@ jobs:
           @property (nonatomic, strong) UIButton *bypassButton;
           + (instancetype)sharedInstance;
           - (void)showHUD;
+          - (void)hideHUD;
           - (void)updateStatus:(NSString *)status color:(UIColor *)color;
           @end
 
@@ -173,7 +165,7 @@ jobs:
                   self.statusLabel.layer.shadowOffset = CGSizeMake(1, 1);
                   self.statusLabel.layer.shadowOpacity = 1.0;
                   self.statusLabel.layer.shadowRadius = 2.0;
-                  self.statusLabel.text = @"🟡 SYSTEM BOOTING...";
+                  self.statusLabel.text = @"🟡 INJECTING...";
                   
                   self.bypassButton = [UIButton buttonWithType:UIButtonTypeSystem];
                   [self.bypassButton setTitle:@" BYPASS 🔴 " forState:UIControlStateNormal];
@@ -195,6 +187,16 @@ jobs:
                   [stack.centerYAnchor constraintEqualToAnchor:self.hudWindow.centerYAnchor].active = YES;
                   
                   [self.hudWindow makeKeyAndVisible];
+              });
+          }
+
+          // 🔥 دالة جديدة لإخفاء اللمبة تماماً إذا ماكو أوفستات 🔥
+          - (void)hideHUD {
+              dispatch_async(dispatch_get_main_queue(), ^{
+                  if (self.hudWindow) {
+                      self.hudWindow.hidden = YES;
+                      self.hudWindow = nil;
+                  }
               });
           }
 
@@ -365,7 +367,7 @@ jobs:
           @end
 
           // ==========================================
-          // 🛡️ UI Manager
+          // 🛡️ UI Manager & Window Handler
           // ==========================================
           @interface FalconUI : NSObject
           + (void)showAuthScreen;
@@ -376,18 +378,17 @@ jobs:
           void CloseAuthWindowAndStart() {
               dispatch_async(dispatch_get_main_queue(), ^{
                   if (authWindow) {
-                      [UIView animateWithDuration:0.3 animations:^{
+                      // 🔥 الحل الأسطوري لمنع التجميد: الإخفاء الشبح (Ghost Dismiss) 🔥
+                      // نخلي النافذة شفافة ونلغي اللمس عنها، ونسحب التركيز منها للعبة. مستحيل تجمد الشاشة بعد!
+                      [UIView animateWithDuration:0.4 animations:^{
                           authWindow.alpha = 0.0;
                       } completion:^(BOOL finished) {
-                          authWindow.hidden = YES;
+                          authWindow.userInteractionEnabled = NO;
                           [authWindow resignKeyWindow]; 
-                          authWindow = nil;
-                          
-                          [[FalconHUD sharedInstance] showHUD];
+                          // لا نقوم بـ authWindow = nil; هنا لتجنب صدمة الـ UI
                           FetchDataFromServer();
                       }];
                   } else {
-                      [[FalconHUD sharedInstance] showHUD];
                       FetchDataFromServer();
                   }
               });
@@ -396,7 +397,7 @@ jobs:
           @implementation FalconUI
           + (void)showAuthScreen {
               dispatch_async(dispatch_get_main_queue(), ^{
-                  if (authWindow) return;
+                  if (authWindow && authWindow.alpha > 0) return;
                   
                   UIWindow *window = nil;
                   if (@available(iOS 13.0, *)) {
@@ -407,8 +408,6 @@ jobs:
                   if (!window) window = [UIApplication sharedApplication].keyWindow;
 
                   if (window && window.rootViewController) {
-                      if ([window.rootViewController.presentedViewController isKindOfClass:[FalconAuthViewController class]]) return;
-                      
                       authWindow = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
                       authWindow.windowLevel = UIWindowLevelAlert + 1000;
                       authWindow.rootViewController = [[FalconAuthViewController alloc] init];
@@ -423,38 +422,7 @@ jobs:
           @end
 
           // ==========================================
-          // 🛰️ Heartbeat (Live Monitoring & Thread Camo)
-          // ==========================================
-          void StartHeartbeat() {
-              static dispatch_source_t timer = nil;
-              if (!timer) {
-                  timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
-                  dispatch_source_set_timer(timer, dispatch_time(DISPATCH_TIME_NOW, 5.0 * NSEC_PER_SEC), 10.0 * NSEC_PER_SEC, 1.0 * NSEC_PER_SEC);
-                  dispatch_source_set_event_handler(timer, ^{
-                      [[NSThread currentThread] setName:@"com.apple.uikit.networking"];
-                      
-                      NSString *code = GetSavedLicenseKey();
-                      NSString *udid = [[UIDevice currentDevice] identifierForVendor].UUIDString;
-                      NSString *rawUrl = [NSString stringWithFormat:@"%@?action=check_status&code=%@&udid=%@", apiUrlBase, code, udid];
-                      NSString *encodedUrl = [rawUrl stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
-                      
-                      [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:encodedUrl] completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
-                          if (d && !e) {
-                              NSDictionary *json = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
-                              if ([json[@"security"] isEqualToString:@"RED"]) {
-                                  [[FalconHUD sharedInstance] updateStatus:@"🔴 SECURITY ALERT: SYSTEM IS RED" color:[UIColor redColor]];
-                              } else {
-                                  [[FalconHUD sharedInstance] updateStatus:@"🟢 FALCON V90 | SECURE" color:[UIColor greenColor]];
-                              }
-                          }
-                      }] resume];
-                  });
-                  dispatch_resume(timer);
-              }
-          }
-
-          // ==========================================
-          // 🚀 Safe COW Patching (No Jailbreak)
+          // 🚀 Injection Logic
           // ==========================================
           uintptr_t GetBase(const char* name) {
               uint32_t count = _dyld_image_count();
@@ -480,12 +448,13 @@ jobs:
               return kr == KERN_SUCCESS;
           }
 
-          // ==========================================
-          // 🚀 Injection Logic
-          // ==========================================
           void SafeInjectLoop(NSMutableArray *offsetsList) {
               static int attempts = 0;
-              if (attempts > 100) return; 
+              if (attempts > 100) {
+                  // إذا فشل الحقن نهائياً بعد 100 محاولة، نطفي اللمبة لأن ماكو شي صار
+                  [[FalconHUD sharedInstance] updateStatus:@"❌ INJECTION FAILED" color:[UIColor redColor]];
+                  return; 
+              }
               
               BOOL allInjected = YES;
               for (NSMutableDictionary *item in offsetsList) {
@@ -500,7 +469,7 @@ jobs:
                       if (Patch(base + off, {0x1F, 0x20, 0x03, 0xD5})) {
                           [item setValue:@YES forKey:@"injected"];
                           
-                          // 🔥 تصليح التبليغ (URL Encoding): حتى السيرفر يفهم الرسالة وتضوي اللمبة!
+                          // 🔥 إرسال التبليغ للسيرفر (URL Encoding) - الرابط الثالث 🔥
                           NSString *rawUrl = [NSString stringWithFormat:@"%@?action=mark_injected&hex=%@&code=%@&udid=%@", apiUrlBase, item[@"offset_hex"], GetSavedLicenseKey(), [[UIDevice currentDevice] identifierForVendor].UUIDString];
                           NSString *encodedUrl = [rawUrl stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
                           [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:encodedUrl]] resume];
@@ -517,32 +486,77 @@ jobs:
                   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
                       SafeInjectLoop(offsetsList);
                   });
+              } else {
+                  // إذا كل الأوفستات انحقنت، اللمبة تصير خضراء
+                  [[FalconHUD sharedInstance] updateStatus:@"🟢 FALCON V90 | SECURE" color:[UIColor greenColor]];
               }
           }
 
+          // ==========================================
+          // 🛰️ Heartbeat (Live Monitoring)
+          // ==========================================
+          void StartHeartbeat() {
+              static dispatch_source_t timer = nil;
+              if (!timer) {
+                  timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
+                  dispatch_source_set_timer(timer, dispatch_time(DISPATCH_TIME_NOW, 5.0 * NSEC_PER_SEC), 10.0 * NSEC_PER_SEC, 1.0 * NSEC_PER_SEC);
+                  dispatch_source_set_event_handler(timer, ^{
+                      [[NSThread currentThread] setName:@"com.apple.uikit.networking"];
+                      
+                      NSString *code = GetSavedLicenseKey();
+                      NSString *udid = [[UIDevice currentDevice] identifierForVendor].UUIDString;
+                      // 🔥 رابط نبض القلب وفحص التجميد - الرابط الرابع 🔥
+                      NSString *rawUrl = [NSString stringWithFormat:@"%@?action=check_status&code=%@&udid=%@", apiUrlBase, code, udid];
+                      NSString *encodedUrl = [rawUrl stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
+                      
+                      [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:encodedUrl] completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {}] resume];
+                  });
+                  dispatch_resume(timer);
+              }
+          }
+
+          // ==========================================
+          // 📥 جلب الأوفستات وتشغيل اللمبة (فقط إذا اكو أوفستات!)
+          // ==========================================
           void FetchDataFromServer() {
-              StartHeartbeat();
+              StartHeartbeat(); // تشغيل نبض القلب كخلفية بشكل دائم
 
               NSString *code = GetSavedLicenseKey();
               NSString *udid = [[UIDevice currentDevice] identifierForVendor].UUIDString;
+              // 🔥 رابط جلب الأوفستات - الرابط الثاني 🔥
               NSString *rawUrl = [NSString stringWithFormat:@"%@?action=get_offsets&code=%@&udid=%@", apiUrlBase, code, udid];
               NSString *encodedUrl = [rawUrl stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
               
               [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:encodedUrl] completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
                   if (d) {
                       NSDictionary *oj = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
-                      if (oj[@"payload"]) {
+                      if ([oj[@"status"] isEqualToString:@"success"] && oj[@"payload"]) {
                           NSData *decoded = [[NSData alloc] initWithBase64EncodedString:oj[@"payload"] options:0];
                           NSArray *list = [NSJSONSerialization JSONObjectWithData:decoded options:0 error:nil];
                           
-                          NSMutableArray *mutableList = [NSMutableArray array];
-                          for (NSDictionary *dict in list) {
-                              [mutableList addObject:[dict mutableCopy]];
-                          }
-
-                          if (mutableList.count > 0) {
+                          if (list && list.count > 0) {
+                              NSMutableArray *mutableList = [NSMutableArray array];
+                              for (NSDictionary *dict in list) {
+                                  [mutableList addObject:[dict mutableCopy]];
+                              }
+                              
+                              // 🔥 اللمبة لا تظهر إطلاقاً إلا إذا كان هناك أوفستات! 🔥
+                              dispatch_async(dispatch_get_main_queue(), ^{
+                                  [[FalconHUD sharedInstance] showHUD];
+                              });
+                              
                               SafeInjectLoop(mutableList);
+                          } else {
+                              // إذا اللوحة فارغة، اخفي اللمبة تماماً
+                              dispatch_async(dispatch_get_main_queue(), ^{
+                                  [[FalconHUD sharedInstance] hideHUD];
+                              });
                           }
+                      } else {
+                          // إذا رجع النظام فارغ، اخفي اللمبة
+                          dispatch_async(dispatch_get_main_queue(), ^{
+                              [[FalconHUD sharedInstance] hideHUD];
+                          });
                       }
                   }
               }] resume];
@@ -552,6 +566,7 @@ jobs:
               NSString *k = GetSavedLicenseKey();
               if (k && k.length > 0) {
                   NSString *u = [[UIDevice currentDevice] identifierForVendor].UUIDString;
+                  // 🔥 رابط تسجيل الدخول - الرابط الأول 🔥
                   NSString *rawUrl = [NSString stringWithFormat:@"%@?action=auth&code=%@&udid=%@", apiUrlBase, k, u];
                   NSString *encodedUrl = [rawUrl stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
                   
@@ -560,7 +575,7 @@ jobs:
                           if (d && !e) {
                               NSDictionary *j = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
                               if ([j[@"status"] isEqualToString:@"success"]) { 
-                                  [[FalconHUD sharedInstance] showHUD];
+                                  // دخول تلقائي ناجح
                                   FetchDataFromServer();
                                   return; 
                               }
@@ -576,7 +591,6 @@ jobs:
           }
 
           __attribute__((constructor)) static void init() {
-              // مسحنا إخفاء الدايلب، وعدلنا الحماية حتى لا تكرش
               dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
                   ActivateV90Titan(); 
                   AutoLoginCheck();
