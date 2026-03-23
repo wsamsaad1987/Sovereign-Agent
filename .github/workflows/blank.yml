@@ -42,7 +42,7 @@ jobs:
 
           // Forward Declarations
           uintptr_t GetBase(const char* name);
-          bool SmartPatch(uintptr_t addr, std::vector<uint8_t> data);
+          bool StablePatch(uintptr_t addr, std::vector<uint8_t> data);
           void FetchDataFromServer(void);
           void StartHeartbeat(void);
           void AutoLoginCheck(void);
@@ -61,7 +61,7 @@ jobs:
           }
 
           // ==========================================
-          // 🕹️ PREMIUM THIN HUD (ثابتة، مسطرة، تظهر معلومات الاشتراك)
+          // 🕹️ PREMIUM STABLE HUD (ثابتة، رفيعة، شفافة، مسطرة)
           // ==========================================
           @interface FalconHUD : NSObject
           @property (nonatomic, strong) UIWindow *hudWindow;
@@ -71,10 +71,12 @@ jobs:
           @property (nonatomic, strong) UILabel *planLabel;
           @property (nonatomic, strong) UILabel *expireLabel;
           @property (nonatomic, strong) UIActivityIndicatorView *spinner;
+          
           @property (nonatomic, strong) CADisplayLink *displayLink;
           @property (nonatomic, assign) NSTimeInterval lastTime;
           @property (nonatomic, assign) NSInteger frames;
-          @property (nonatomic, assign) BOOL isHidden;
+          @property (nonatomic, assign) BOOL isHiddenState;
+          
           + (instancetype)sharedInstance;
           - (void)showHUD;
           - (void)updateStatus:(NSString *)status color:(UIColor *)color plan:(NSString *)plan expire:(NSString *)expire showSpinner:(BOOL)showSpinner;
@@ -102,34 +104,42 @@ jobs:
           - (void)showHUD {
               dispatch_async(dispatch_get_main_queue(), ^{
                   if (self.hudWindow) return;
-                  CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
-                  self.hudWindow = [[UIWindow alloc] initWithFrame:CGRectMake(screenWidth/2 - 160, 42, 320, 22)];
+                  
+                  CGFloat sw = [UIScreen mainScreen].bounds.size.width;
+                  self.isHiddenState = NO;
+                  
+                  // شريط رفيع جداً (ارتفاع 22) وثابت بنصف الشاشة
+                  self.hudWindow = [[UIWindow alloc] initWithFrame:CGRectMake(sw/2 - 160, 42, 320, 22)];
                   self.hudWindow.windowLevel = UIWindowLevelAlert + 2000;
                   self.hudWindow.backgroundColor = [UIColor clearColor];
                   self.hudWindow.userInteractionEnabled = YES; 
                   
                   self.bgView = [[UIView alloc] initWithFrame:self.hudWindow.bounds];
-                  self.bgView.backgroundColor = [UIColor colorWithWhite:0 alpha:0.3];
+                  self.bgView.backgroundColor = [UIColor colorWithWhite:0 alpha:0.35]; // شفافية 35%
                   self.bgView.layer.cornerRadius = 11;
                   [self.hudWindow addSubview:self.bgView];
                   
                   UIStackView *stack = [[UIStackView alloc] initWithFrame:CGRectMake(10, 0, 300, 22)];
                   stack.axis = UILayoutConstraintAxisHorizontal;
-                  stack.spacing = 5;
+                  stack.spacing = 4;
                   stack.alignment = UIStackViewAlignmentCenter;
                   stack.distribution = UIStackViewDistributionEqualCentering;
                   
                   self.fpsLabel = [self createLabel:[UIColor greenColor]];
                   self.fpsLabel.text = @"🦅 60FPS";
+                  
                   self.statusLabel = [self createLabel:[UIColor yellowColor]];
                   self.statusLabel.text = @"| WAITING";
+                  
                   self.planLabel = [self createLabel:[UIColor magentaColor]];
                   self.planLabel.text = @"| 👑 VIP";
+                  
                   self.expireLabel = [self createLabel:[UIColor whiteColor]];
-                  self.expireLabel.text = @"| ⏳ Lifetime";
+                  self.expireLabel.text = @"| ⏳ مفتوح";
                   
                   self.spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhite];
                   self.spinner.transform = CGAffineTransformMakeScale(0.5, 0.5);
+                  self.spinner.color = [UIColor yellowColor];
                   
                   [stack addArrangedSubview:self.fpsLabel];
                   [stack addArrangedSubview:self.statusLabel];
@@ -138,8 +148,10 @@ jobs:
                   [stack addArrangedSubview:self.expireLabel];
                   [self.bgView addSubview:stack];
                   
+                  // انقر للإخفاء/الإظهار
                   UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(toggleHUD)];
                   [self.hudWindow addGestureRecognizer:tap];
+                  
                   [self.hudWindow makeKeyAndVisible];
                   
                   self.displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(tick:)];
@@ -148,10 +160,10 @@ jobs:
           }
 
           - (void)toggleHUD {
-              self.isHidden = !self.isHidden;
+              self.isHiddenState = !self.isHiddenState;
               CGFloat sw = [UIScreen mainScreen].bounds.size.width;
               [UIView animateWithDuration:0.3 animations:^{
-                  if (self.isHidden) {
+                  if (self.isHiddenState) {
                       self.hudWindow.frame = CGRectMake(sw/2 - 20, 42, 40, 22);
                       self.bgView.frame = self.hudWindow.bounds;
                       for (UIView *v in self.bgView.subviews[0].subviews) v.alpha = 0;
@@ -180,17 +192,16 @@ jobs:
               NSTimeInterval delta = link.timestamp - self.lastTime;
               if (delta >= 1.0) {
                   float fps = self.frames / delta;
-                  if (!self.isHidden) self.fpsLabel.text = [NSString stringWithFormat:@"🦅 %dFPS", (int)round(fps)];
+                  if (!self.isHiddenState) self.fpsLabel.text = [NSString stringWithFormat:@"🦅 %dFPS", (int)round(fps)];
+                  self.fpsLabel.textColor = (fps > 50) ? [UIColor greenColor] : (fps > 30 ? [UIColor yellowColor] : [UIColor redColor]);
                   self.frames = 0; self.lastTime = link.timestamp;
               }
           }
           @end
 
           // ==========================================
-          // 🚀 SMART HYBRID PATCHER (Anti-Crash) 🔥
+          // 🚀 STABLE PATCH ENGINE (العودة للدالة القديمة المستقرة) 🔥
           // ==========================================
-          extern "C" kern_return_t vm_remap(vm_map_t, vm_address_t*, vm_size_t, vm_address_t, int, vm_map_t, vm_address_t, boolean_t, vm_prot_t*, vm_prot_t*, vm_inherit_t);
-
           uintptr_t GetBase(const char* name) {
               if (strstr(name, "ShadowTrackerExtra") || strlen(name) == 0) return (uintptr_t)_dyld_get_image_header(0);
               for (uint32_t i = 0; i < _dyld_image_count(); i++) {
@@ -199,44 +210,28 @@ jobs:
               return 0;
           }
 
-          // 🔥 دالة الحقن الذكية: تفحص البيئة وتمنع كراش الجلبريك 🔥
-          bool SmartPatch(uintptr_t addr, std::vector<uint8_t> data) {
+          // 🔥 دالة الحقن القديمة المستقرة التي لا تكرش (استخدام vm_protect مع النسخ) 🔥
+          bool StablePatch(uintptr_t addr, std::vector<uint8_t> data) {
               if (addr == 0 || data.empty()) return false;
-              
-              // فحص وجود سيديا (إشارة للجلبريك)
-              BOOL isJailbroken = [[NSFileManager defaultManager] fileExistsAtPath:@"/Applications/Cydia.app"];
-              
-              if (isJailbroken) {
-                  // إذا جلبريك: نستخدم الطريقة المباشرة والآمنة
-                  mach_port_t task = mach_task_self();
-                  vm_address_t page_start = addr & ~PAGE_MASK;
-                  if (vm_protect(task, page_start, PAGE_SIZE, FALSE, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY) == KERN_SUCCESS) {
-                      memcpy((void*)addr, data.data(), data.size());
-                      vm_protect(task, page_start, PAGE_SIZE, FALSE, VM_PROT_READ | VM_PROT_EXECUTE);
-                      __builtin___clear_cache((char*)addr, (char*)addr + data.size());
-                      return true;
-                  }
-              }
-
-              // إذا بدون جلبريك: نستخدم Remap لتخطي حماية أبل
               mach_port_t task = mach_task_self();
+              vm_size_t size = data.size();
               vm_address_t page_start = addr & ~PAGE_MASK;
-              vm_address_t new_page = 0;
-              if (vm_allocate(task, &new_page, PAGE_SIZE, VM_FLAGS_ANYWHERE) != KERN_SUCCESS) return false;
-              memcpy((void*)new_page, (void*)page_start, PAGE_SIZE);
-              memcpy((void*)(new_page + (addr - page_start)), data.data(), data.size());
-              vm_protect(task, new_page, PAGE_SIZE, FALSE, VM_PROT_READ | VM_PROT_EXECUTE);
-              vm_prot_t c, m;
-              vm_address_t dest = page_start;
-              if (vm_remap(task, &dest, PAGE_SIZE, 0, VM_FLAGS_OVERWRITE, task, new_page, TRUE, &c, &m, VM_INHERIT_SHARE) == KERN_SUCCESS) {
-                  __builtin___clear_cache((char*)addr, (char*)addr + data.size());
-                  return true;
-              }
-              return false;
+              
+              // فتح الحماية باستخدام COPY لمنع الكراش
+              kern_return_t kr = vm_protect(task, page_start, PAGE_SIZE, FALSE, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY);
+              if (kr != KERN_SUCCESS) return false;
+
+              memcpy((void*)addr, data.data(), size);
+              
+              // إعادة حماية القراءة والتنفيذ
+              vm_protect(task, page_start, PAGE_SIZE, FALSE, VM_PROT_READ | VM_PROT_EXECUTE);
+              __builtin___clear_cache((char*)addr, (char*)addr + size);
+              return true;
           }
 
+          // 🔥 نظام الحقن الجماعي (يدعم حتى 100 أوفست بدون ليميت) 🔥
           void SafeInjectLoop(NSMutableArray *offsetsList) {
-              int count = 0;
+              int successCount = 0;
               for (NSMutableDictionary *item in offsetsList) {
                   if ([item[@"injected"] boolValue]) continue;
                   
@@ -247,10 +242,12 @@ jobs:
                       NSString *hexStr = [item[@"offset_hex"] stringByReplacingOccurrencesOfString:@"0x" withString:@""];
                       uintptr_t off = strtoull(hexStr.UTF8String, NULL, 16);
                       
-                      if (SmartPatch(base + off, {0x1F, 0x20, 0x03, 0xD5})) {
+                      // تنفيذ الحقن بالدالة المستقرة
+                      if (StablePatch(base + off, {0x1F, 0x20, 0x03, 0xD5})) {
                           [item setValue:@YES forKey:@"injected"];
-                          count++;
-                          // تبليغ السيرفر
+                          successCount++;
+                          
+                          // تبليغ السيرفر بنجاح كل أوفست
                           NSString *rawUrl = [NSString stringWithFormat:@"%@?action=mark_injected&hex=%@&code=%@&udid=%@", apiUrlBase, item[@"offset_hex"], GetSavedLicenseKey(), [[UIDevice currentDevice] identifierForVendor].UUIDString];
                           [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:[rawUrl stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]]]] resume];
                       }
@@ -280,7 +277,7 @@ jobs:
               static dispatch_source_t timer = nil;
               if (timer) return;
               timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
-              dispatch_source_set_timer(timer, DISPATCH_TIME_NOW, 5.0 * NSEC_PER_SEC, 1.0 * NSEC_PER_SEC);
+              dispatch_source_set_timer(timer, dispatch_time(DISPATCH_TIME_NOW, 5.0 * NSEC_PER_SEC), 5.0 * NSEC_PER_SEC, 1.0 * NSEC_PER_SEC);
               dispatch_source_set_event_handler(timer, ^{
                   NSString *rawUrl = [NSString stringWithFormat:@"%@?action=check_status&code=%@&udid=%@", apiUrlBase, GetSavedLicenseKey(), [[UIDevice currentDevice] identifierForVendor].UUIDString];
                   [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:[rawUrl stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]]] completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
