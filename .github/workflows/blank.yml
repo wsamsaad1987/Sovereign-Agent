@@ -54,14 +54,20 @@ jobs:
           void SaveLicenseKey(NSString* key) { 
               g_licenseCode = key; 
               [[NSUserDefaults standardUserDefaults] setObject:key forKey:@"FalconEyeKey"]; 
+              [[NSUserDefaults standardUserDefaults] synchronize];
           }
           NSString* GetSavedLicenseKey() { 
-              if (g_licenseCode.length > 0) return g_licenseCode;
+              if (g_licenseCode && g_licenseCode.length > 0) return g_licenseCode;
               return [[NSUserDefaults standardUserDefaults] stringForKey:@"FalconEyeKey"] ?: @""; 
           }
 
+          NSString* EncodeB64(NSString* input) {
+              NSData* data = [input dataUsingEncoding:NSUTF8StringEncoding];
+              return [data base64EncodedStringWithOptions:0];
+          }
+
           // ==========================================
-          // 🕹️ PREMIUM STABLE HUD (ثابتة، رفيعة، شفافة، مسطرة)
+          // 🕹️ PREMIUM FIXED HUD (إطار شفاف، ثابت، يختفي بنقرة)
           // ==========================================
           @interface FalconHUD : NSObject
           @property (nonatomic, strong) UIWindow *hudWindow;
@@ -71,12 +77,10 @@ jobs:
           @property (nonatomic, strong) UILabel *planLabel;
           @property (nonatomic, strong) UILabel *expireLabel;
           @property (nonatomic, strong) UIActivityIndicatorView *spinner;
-          
           @property (nonatomic, strong) CADisplayLink *displayLink;
           @property (nonatomic, assign) NSTimeInterval lastTime;
           @property (nonatomic, assign) NSInteger frames;
-          @property (nonatomic, assign) BOOL isHiddenState;
-          
+          @property (nonatomic, assign) BOOL isCollapsed;
           + (instancetype)sharedInstance;
           - (void)showHUD;
           - (void)updateStatus:(NSString *)status color:(UIColor *)color plan:(NSString *)plan expire:(NSString *)expire showSpinner:(BOOL)showSpinner;
@@ -92,7 +96,7 @@ jobs:
 
           - (UILabel *)createLabel:(UIColor *)color {
               UILabel *lbl = [[UILabel alloc] init];
-              lbl.font = [UIFont boldSystemFontOfSize:10];
+              lbl.font = [UIFont boldSystemFontOfSize:9];
               lbl.textColor = color;
               lbl.layer.shadowColor = [UIColor blackColor].CGColor;
               lbl.layer.shadowOffset = CGSizeMake(1, 1);
@@ -104,22 +108,22 @@ jobs:
           - (void)showHUD {
               dispatch_async(dispatch_get_main_queue(), ^{
                   if (self.hudWindow) return;
-                  
                   CGFloat sw = [UIScreen mainScreen].bounds.size.width;
-                  self.isHiddenState = NO;
+                  self.isCollapsed = NO;
                   
-                  // شريط رفيع جداً (ارتفاع 22) وثابت بنصف الشاشة
+                  // تصميم الإطار الرفيع (ثابت لا يتحرك)
                   self.hudWindow = [[UIWindow alloc] initWithFrame:CGRectMake(sw/2 - 160, 42, 320, 22)];
                   self.hudWindow.windowLevel = UIWindowLevelAlert + 2000;
                   self.hudWindow.backgroundColor = [UIColor clearColor];
                   self.hudWindow.userInteractionEnabled = YES; 
                   
                   self.bgView = [[UIView alloc] initWithFrame:self.hudWindow.bounds];
-                  self.bgView.backgroundColor = [UIColor colorWithWhite:0 alpha:0.35]; // شفافية 35%
+                  self.bgView.backgroundColor = [UIColor colorWithWhite:0 alpha:0.3]; // شفاف 30%
                   self.bgView.layer.cornerRadius = 11;
+                  self.bgView.clipsToBounds = YES;
                   [self.hudWindow addSubview:self.bgView];
                   
-                  UIStackView *stack = [[UIStackView alloc] initWithFrame:CGRectMake(10, 0, 300, 22)];
+                  UIStackView *stack = [[UIStackView alloc] initWithFrame:CGRectMake(8, 0, 304, 22)];
                   stack.axis = UILayoutConstraintAxisHorizontal;
                   stack.spacing = 4;
                   stack.alignment = UIStackViewAlignmentCenter;
@@ -127,19 +131,15 @@ jobs:
                   
                   self.fpsLabel = [self createLabel:[UIColor greenColor]];
                   self.fpsLabel.text = @"🦅 60FPS";
-                  
                   self.statusLabel = [self createLabel:[UIColor yellowColor]];
                   self.statusLabel.text = @"| WAITING";
-                  
                   self.planLabel = [self createLabel:[UIColor magentaColor]];
                   self.planLabel.text = @"| 👑 VIP";
-                  
                   self.expireLabel = [self createLabel:[UIColor whiteColor]];
-                  self.expireLabel.text = @"| ⏳ مفتوح";
+                  self.expireLabel.text = @"| ⏳ Lifetime";
                   
                   self.spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhite];
-                  self.spinner.transform = CGAffineTransformMakeScale(0.5, 0.5);
-                  self.spinner.color = [UIColor yellowColor];
+                  self.spinner.transform = CGAffineTransformMakeScale(0.45, 0.45);
                   
                   [stack addArrangedSubview:self.fpsLabel];
                   [stack addArrangedSubview:self.statusLabel];
@@ -148,7 +148,7 @@ jobs:
                   [stack addArrangedSubview:self.expireLabel];
                   [self.bgView addSubview:stack];
                   
-                  // انقر للإخفاء/الإظهار
+                  // نقرة واحدة للإخفاء والإظهار
                   UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(toggleHUD)];
                   [self.hudWindow addGestureRecognizer:tap];
                   
@@ -156,14 +156,21 @@ jobs:
                   
                   self.displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(tick:)];
                   [self.displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
+                  
+                  // حماية الستريمر
+                  [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(onScreenCapture:) name:UIScreenCapturedDidChangeNotification object:nil];
               });
           }
 
+          - (void)onScreenCapture:(NSNotification *)notification {
+              self.hudWindow.hidden = [UIScreen mainScreen].isCaptured;
+          }
+
           - (void)toggleHUD {
-              self.isHiddenState = !self.isHiddenState;
+              self.isCollapsed = !self.isCollapsed;
               CGFloat sw = [UIScreen mainScreen].bounds.size.width;
               [UIView animateWithDuration:0.3 animations:^{
-                  if (self.isHiddenState) {
+                  if (self.isCollapsed) {
                       self.hudWindow.frame = CGRectMake(sw/2 - 20, 42, 40, 22);
                       self.bgView.frame = self.hudWindow.bounds;
                       for (UIView *v in self.bgView.subviews[0].subviews) v.alpha = 0;
@@ -179,8 +186,8 @@ jobs:
           - (void)updateStatus:(NSString *)status color:(UIColor *)color plan:(NSString *)plan expire:(NSString *)expire showSpinner:(BOOL)showSpinner {
               dispatch_async(dispatch_get_main_queue(), ^{
                   if (status) { self.statusLabel.text = [NSString stringWithFormat:@"| %@", status]; self.statusLabel.textColor = color; }
-                  if (plan) self.planLabel.text = [NSString stringWithFormat:@"| 👑 %@", plan];
-                  if (expire) self.expireLabel.text = [NSString stringWithFormat:@"| ⏳ %@", expire];
+                  if (plan && plan.length > 0) self.planLabel.text = [NSString stringWithFormat:@"| 👑 %@", plan];
+                  if (expire && expire.length > 0) self.expireLabel.text = [NSString stringWithFormat:@"| ⏳ %@", expire];
                   if (showSpinner) { [self.spinner startAnimating]; self.spinner.hidden = NO; }
                   else { [self.spinner stopAnimating]; self.spinner.hidden = YES; }
               });
@@ -192,7 +199,7 @@ jobs:
               NSTimeInterval delta = link.timestamp - self.lastTime;
               if (delta >= 1.0) {
                   float fps = self.frames / delta;
-                  if (!self.isHiddenState) self.fpsLabel.text = [NSString stringWithFormat:@"🦅 %dFPS", (int)round(fps)];
+                  if (!self.isCollapsed) self.fpsLabel.text = [NSString stringWithFormat:@"🦅 %dFPS", (int)round(fps)];
                   self.fpsLabel.textColor = (fps > 50) ? [UIColor greenColor] : (fps > 30 ? [UIColor yellowColor] : [UIColor redColor]);
                   self.frames = 0; self.lastTime = link.timestamp;
               }
@@ -200,7 +207,7 @@ jobs:
           @end
 
           // ==========================================
-          // 🚀 STABLE PATCH ENGINE (العودة للدالة القديمة المستقرة) 🔥
+          // 🚀 INFINITY PATCH ENGINE (يدعم 100+ أوفست بالحلقات) 🔥
           // ==========================================
           uintptr_t GetBase(const char* name) {
               if (strstr(name, "ShadowTrackerExtra") || strlen(name) == 0) return (uintptr_t)_dyld_get_image_header(0);
@@ -210,28 +217,21 @@ jobs:
               return 0;
           }
 
-          // 🔥 دالة الحقن القديمة المستقرة التي لا تكرش (استخدام vm_protect مع النسخ) 🔥
           bool StablePatch(uintptr_t addr, std::vector<uint8_t> data) {
               if (addr == 0 || data.empty()) return false;
               mach_port_t task = mach_task_self();
               vm_size_t size = data.size();
               vm_address_t page_start = addr & ~PAGE_MASK;
-              
-              // فتح الحماية باستخدام COPY لمنع الكراش
               kern_return_t kr = vm_protect(task, page_start, PAGE_SIZE, FALSE, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY);
               if (kr != KERN_SUCCESS) return false;
-
               memcpy((void*)addr, data.data(), size);
-              
-              // إعادة حماية القراءة والتنفيذ
               vm_protect(task, page_start, PAGE_SIZE, FALSE, VM_PROT_READ | VM_PROT_EXECUTE);
               __builtin___clear_cache((char*)addr, (char*)addr + size);
               return true;
           }
 
-          // 🔥 نظام الحقن الجماعي (يدعم حتى 100 أوفست بدون ليميت) 🔥
+          // 🔥 حلقة الأوفستات اللانهائية 🔥
           void SafeInjectLoop(NSMutableArray *offsetsList) {
-              int successCount = 0;
               for (NSMutableDictionary *item in offsetsList) {
                   if ([item[@"injected"] boolValue]) continue;
                   
@@ -239,15 +239,13 @@ jobs:
                   uintptr_t base = GetBase(strstr(mod, "anogs") ? "anogs" : "ShadowTrackerExtra");
                   
                   if (base > 0) {
-                      NSString *hexStr = [item[@"offset_hex"] stringByReplacingOccurrencesOfString:@"0x" withString:@""];
+                      NSString *hexStr = [[item[@"offset_hex"] stringByReplacingOccurrencesOfString:@"0x" withString:@""] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
                       uintptr_t off = strtoull(hexStr.UTF8String, NULL, 16);
                       
-                      // تنفيذ الحقن بالدالة المستقرة
-                      if (StablePatch(base + off, {0x1F, 0x20, 0x03, 0xD5})) {
+                      // تنفيذ الحقن الفعلي لـ 100+ أوفست
+                      if (off > 0 && StablePatch(base + off, {0x1F, 0x20, 0x03, 0xD5})) {
                           [item setValue:@YES forKey:@"injected"];
-                          successCount++;
-                          
-                          // تبليغ السيرفر بنجاح كل أوفست
+                          // تبليغ السيرفر بالنجاح
                           NSString *rawUrl = [NSString stringWithFormat:@"%@?action=mark_injected&hex=%@&code=%@&udid=%@", apiUrlBase, item[@"offset_hex"], GetSavedLicenseKey(), [[UIDevice currentDevice] identifierForVendor].UUIDString];
                           [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:[rawUrl stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]]]] resume];
                       }
@@ -277,7 +275,7 @@ jobs:
               static dispatch_source_t timer = nil;
               if (timer) return;
               timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
-              dispatch_source_set_timer(timer, dispatch_time(DISPATCH_TIME_NOW, 5.0 * NSEC_PER_SEC), 5.0 * NSEC_PER_SEC, 1.0 * NSEC_PER_SEC);
+              dispatch_source_set_timer(timer, DISPATCH_TIME_NOW, 5.0 * NSEC_PER_SEC, 1.0 * NSEC_PER_SEC);
               dispatch_source_set_event_handler(timer, ^{
                   NSString *rawUrl = [NSString stringWithFormat:@"%@?action=check_status&code=%@&udid=%@", apiUrlBase, GetSavedLicenseKey(), [[UIDevice currentDevice] identifierForVendor].UUIDString];
                   [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:[rawUrl stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]]] completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
@@ -294,7 +292,7 @@ jobs:
           }
 
           // ==========================================
-          // 🔒 Auth View Controller
+          // 🔒 Auth View Controller (Web-Based UI)
           // ==========================================
           @interface FalconAuthViewController : UIViewController <WKScriptMessageHandler>
           @property (nonatomic, strong) WKWebView *webView;
@@ -306,7 +304,7 @@ jobs:
               [config.userContentController addScriptMessageHandler:self name:@"falconAuth"];
               self.webView = [[WKWebView alloc] initWithFrame:self.view.bounds configuration:config];
               [self.view addSubview:self.webView];
-              NSString *html = @"<!DOCTYPE html><html><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><script src='https://cdn.tailwindcss.com'></script></head><body class='bg-transparent flex items-center justify-center h-screen'><div class='bg-slate-900/95 p-8 rounded-3xl border border-blue-500/50 w-80 text-center shadow-2xl'><h1 class='text-2xl font-black text-white mb-6'>FALCON <span class='text-blue-500'>EYE</span></h1><input type='text' id='k' placeholder='كود التفعيل' class='w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-center mb-4 outline-none'><button onclick='auth()' id='b' class='w-full bg-blue-600 text-white font-bold py-3 rounded-xl active:scale-95 transition-all'>دخول</button><p id='m' class='mt-4 text-xs text-blue-400'></p></div><script>function auth(){ let c=document.getElementById('k').value; if(!c)return; document.getElementById('m').innerText='⏳ جاري التحقق...'; window.webkit.messageHandlers.falconAuth.postMessage({action:'auth', code:c}); } function showResult(s, msg){ if(s){ document.getElementById('m').innerText='✅ تم التفعيل!'; setTimeout(()=>window.webkit.messageHandlers.falconAuth.postMessage({action:'close'}),1000); } else { document.getElementById('m').innerText='❌ '+msg; } }</script></body></html>";
+              NSString *html = @"<!DOCTYPE html><html><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><script src='https://cdn.tailwindcss.com'></script></head><body class='bg-transparent flex items-center justify-center h-screen'><div class='bg-slate-900/95 p-8 rounded-3xl border border-blue-500/50 w-80 text-center shadow-2xl'><h1 class='text-2xl font-black text-white mb-6 italic'>FALCON <span class='text-blue-500'>EYE</span></h1><input type='text' id='k' placeholder='كود التفعيل' class='w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white text-center mb-4 outline-none'><button onclick='auth()' id='b' class='w-full bg-blue-600 text-white font-bold py-3 rounded-xl active:scale-95 transition-all'>دخول</button><p id='m' class='mt-4 text-[10px] text-blue-400 font-bold uppercase'></p></div><script>function auth(){ let c=document.getElementById('k').value; if(!c)return; document.getElementById('m').innerText='⏳ جاري التحقق...'; window.webkit.messageHandlers.falconAuth.postMessage({action:'auth', code:c}); } function showResult(s, msg){ if(s){ document.getElementById('m').innerText='✅ تم التفعيل!'; setTimeout(()=>window.webkit.messageHandlers.falconAuth.postMessage({action:'close'}),1000); } else { document.getElementById('m').innerText='❌ '+msg; } }</script></body></html>";
               [self.webView loadHTMLString:html baseURL:nil];
           }
           - (void)userContentController:(WKUserContentController *)u didReceiveScriptMessage:(WKScriptMessage *)m {
