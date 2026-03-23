@@ -25,7 +25,7 @@ jobs:
           #import <CoreGraphics/CoreGraphics.h>
           #import <mach-o/dyld.h>
           #import <mach/mach.h>
-          #include <sys/mman.h> // 🔥 مكتبة الحقن الإجبارية للبدون جلبريك 🔥
+          #include <sys/mman.h> 
           #include <vector>
           #include <string>
 
@@ -35,14 +35,24 @@ jobs:
           uintptr_t GetBase(const char* name);
           bool Patch(uintptr_t addr, std::vector<uint8_t> data);
           void FetchDataFromServer(void);
-          void StartHeartbeat(void);
           void AutoLoginCheck(void);
           void CloseAuthWindowAndStart(void);
 
           UIWindow *g_authWindow = nil;
 
-          void SaveLicenseKey(NSString* key) { [[NSUserDefaults standardUserDefaults] setObject:key forKey:@"FalconEyeKey"]; }
-          NSString* GetSavedLicenseKey() { return [[NSUserDefaults standardUserDefaults] stringForKey:@"FalconEyeKey"]; }
+          // 🔥 الحل السحري: حفظ الكود في الرام (RAM) لتجاوز حظر ببجي 🔥
+          static NSString *g_licenseCode = @"";
+
+          void SaveLicenseKey(NSString* key) { 
+              g_licenseCode = key; // حفظ في الرام
+              [[NSUserDefaults standardUserDefaults] setObject:key forKey:@"FalconEyeKey"]; 
+              [[NSUserDefaults standardUserDefaults] synchronize];
+          }
+          
+          NSString* GetSavedLicenseKey() { 
+              if (g_licenseCode && g_licenseCode.length > 0) return g_licenseCode; // الأولوية للرام
+              return [[NSUserDefaults standardUserDefaults] stringForKey:@"FalconEyeKey"] ?: @""; 
+          }
 
           NSString* EncodeB64(NSString* input) {
               NSData* data = [input dataUsingEncoding:NSUTF8StringEncoding];
@@ -106,7 +116,7 @@ jobs:
                   self.statusLabel.layer.shadowOffset = CGSizeMake(1, 1);
                   self.statusLabel.layer.shadowOpacity = 1.0;
                   self.statusLabel.layer.shadowRadius = 2.0;
-                  self.statusLabel.text = @"🟡 WAITING INJECTION...";
+                  self.statusLabel.text = @"🟡 CONNECTING...";
                   
                   self.bypassButton = [UIButton buttonWithType:UIButtonTypeSystem];
                   [self.bypassButton setTitle:@" BYPASS 🔴 " forState:UIControlStateNormal];
@@ -155,7 +165,6 @@ jobs:
               self.bypassButton.userInteractionEnabled = NO;
               
               dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-                  [NSThread sleepForTimeInterval:0.5]; 
                   uintptr_t baseShadow = GetBase("ShadowTrackerExtra");
                   BOOL success = NO;
                   
@@ -178,7 +187,7 @@ jobs:
           @end
 
           // ==========================================
-          // 🔒 Auth View Controller (Web-Based Beautiful UI)
+          // 🔒 Auth View Controller
           // ==========================================
           @interface FalconAuthViewController : UIViewController <WKScriptMessageHandler>
           @property (nonatomic, strong) WKWebView *webView;
@@ -202,8 +211,7 @@ jobs:
               
               [self.view addSubview:self.webView];
               
-              // 🔥 واجهة تسجيل الدخول مع توقيت (كل ثانيتين بالضبط) 🔥
-              NSString *html = @"<!DOCTYPE html><html lang='ar' dir='rtl'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><script src='https://cdn.tailwindcss.com'></script><style>body { background: transparent; margin: 0; overflow: hidden; height: 100vh; display: flex; justify-content: center; align-items: center; font-family: 'Courier New', Courier, monospace; user-select: none; } .glass { background: rgba(10, 15, 30, 0.95); border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 20px; padding: 35px; width: 400px; box-shadow: 0 0 40px rgba(0,0,0,0.8); } </style></head><body><div class='glass' id='box'><h1 class='text-3xl font-black text-white italic mb-1 tracking-tighter text-center'>FALCON<span class='text-blue-500'>EYE</span></h1><p class='text-[10px] text-blue-400 font-bold tracking-widest mb-6 uppercase text-center'>System Authentication</p><div class='relative mb-5'><input type='text' id='k' placeholder='أدخل كود التفعيل' class='w-full bg-[#020617] border border-blue-500/30 rounded-xl p-4 text-white text-center outline-none focus:border-blue-500 transition-all font-bold text-sm tracking-widest' dir='ltr'><button onclick='pasteKey()' class='absolute left-2 top-1/2 -translate-y-1/2 bg-blue-600/20 hover:bg-blue-600/40 px-3 py-2 rounded-lg text-[10px] text-blue-400 font-bold uppercase transition-all'>لصق</button></div><div id='msg' class='text-center mb-3 min-h-[20px] hidden'></div><button onclick='startAuth()' id='btn' class='w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-3.5 rounded-xl shadow-lg active:scale-95 transition-all text-sm tracking-widest'>تسجيل الدخول</button></div><script>function pasteKey(){ window.webkit.messageHandlers.falconAuth.postMessage({action:'paste'}); } function setKey(val){ document.getElementById('k').value = val; } async function startAuth(){ var c = document.getElementById('k').value.trim(); if(!c) return; document.getElementById('btn').disabled = true; document.getElementById('btn').style.opacity = '0.5'; const msg = document.getElementById('msg'); msg.style.display = 'block'; msg.innerHTML = '<span style=\"color:#eab308; font-size:13px; font-weight:bold;\">⏳ جاري الاتصال بالسيرفر...</span>'; await new Promise(r => setTimeout(r, 2000)); msg.innerHTML = '<span style=\"color:#3b82f6; font-size:13px; font-weight:bold;\">🔐 جاري توثيق المزامنه...</span>'; await new Promise(r => setTimeout(r, 2000)); window.webkit.messageHandlers.falconAuth.postMessage({action:'auth', code: c}); } async function showResult(isSuccess, b64Message){ const msg = document.getElementById('msg'); if(isSuccess){ msg.innerHTML = '<span style=\"color:#a855f7; font-size:13px; font-weight:bold;\">⚙️ جاري التفعيل...</span>'; await new Promise(r => setTimeout(r, 2000)); msg.innerHTML = '<span style=\"color:#10b981; font-size:15px; font-weight:900;\">✅ تم التفعيل بنجاح!</span>'; await new Promise(r => setTimeout(r, 2000)); window.webkit.messageHandlers.falconAuth.postMessage({action:'closeWindow'}); } else { try { let err = decodeURIComponent(escape(window.atob(b64Message))); msg.innerHTML = '<span style=\"color:#ef4444; font-size:13px; font-weight:bold;\">❌ ' + err + '</span>'; } catch(e){ msg.innerHTML = '<span style=\"color:#ef4444; font-size:13px; font-weight:bold;\">❌ فشل التحقق</span>'; } setTimeout(() => { document.getElementById('btn').disabled = false; document.getElementById('btn').style.opacity = '1'; msg.style.display = 'none'; msg.innerHTML = ''; }, 3000); } }</script></body></html>";
+              NSString *html = @"<!DOCTYPE html><html lang='ar' dir='rtl'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><script src='https://cdn.tailwindcss.com'></script><style>body { background: transparent; margin: 0; overflow: hidden; height: 100vh; display: flex; justify-content: center; align-items: center; font-family: 'Courier New', Courier, monospace; user-select: none; } .glass { background: rgba(10, 15, 30, 0.95); border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 20px; padding: 35px; width: 400px; box-shadow: 0 0 40px rgba(0,0,0,0.8); } </style></head><body><div class='glass' id='box'><h1 class='text-3xl font-black text-white italic mb-1 tracking-tighter text-center'>FALCON<span class='text-blue-500'>EYE</span></h1><p class='text-[10px] text-blue-400 font-bold tracking-widest mb-6 uppercase text-center'>System Authentication</p><div class='relative mb-5'><input type='text' id='k' placeholder='أدخل كود التفعيل' class='w-full bg-[#020617] border border-blue-500/30 rounded-xl p-4 text-white text-center outline-none focus:border-blue-500 transition-all font-bold text-sm tracking-widest' dir='ltr'><button onclick='pasteKey()' class='absolute left-2 top-1/2 -translate-y-1/2 bg-blue-600/20 hover:bg-blue-600/40 px-3 py-2 rounded-lg text-[10px] text-blue-400 font-bold uppercase transition-all'>لصق</button></div><div id='msg' class='text-center mb-3 min-h-[20px] hidden'></div><button onclick='startAuth()' id='btn' class='w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-3.5 rounded-xl shadow-lg active:scale-95 transition-all text-sm tracking-widest'>تسجيل الدخول</button></div><script>function pasteKey(){ window.webkit.messageHandlers.falconAuth.postMessage({action:'paste'}); } function setKey(val){ document.getElementById('k').value = val; } async function startAuth(){ var c = document.getElementById('k').value.trim(); if(!c) return; document.getElementById('btn').disabled = true; document.getElementById('btn').style.opacity = '0.5'; const msg = document.getElementById('msg'); msg.style.display = 'block'; msg.innerHTML = '<span style=\"color:#eab308; font-size:13px; font-weight:bold;\">⏳ جاري الاتصال بالسيرفر...</span>'; await new Promise(r => setTimeout(r, 2000)); msg.innerHTML = '<span style=\"color:#3b82f6; font-size:13px; font-weight:bold;\">🔐 جاري توثيق المزامنه...</span>'; await new Promise(r => setTimeout(r, 2000)); window.webkit.messageHandlers.falconAuth.postMessage({action:'auth', code: c}); } async function showResult(isSuccess, b64Message){ const msg = document.getElementById('msg'); if(isSuccess){ msg.innerHTML = '<span style=\"color:#a855f7; font-size:13px; font-weight:bold;\">⚙️ جاري التفعيل...</span>'; await new Promise(r => setTimeout(r, 2000)); msg.innerHTML = '<span style=\"color:#10b981; font-size:15px; font-weight:900;\">✅ تم التفعيل بنجاح!</span>'; await new Promise(r => setTimeout(r, 1500)); window.webkit.messageHandlers.falconAuth.postMessage({action:'closeWindow'}); } else { try { let err = decodeURIComponent(escape(window.atob(b64Message))); msg.innerHTML = '<span style=\"color:#ef4444; font-size:13px; font-weight:bold;\">❌ ' + err + '</span>'; } catch(e){ msg.innerHTML = '<span style=\"color:#ef4444; font-size:13px; font-weight:bold;\">❌ فشل التحقق</span>'; } setTimeout(() => { document.getElementById('btn').disabled = false; document.getElementById('btn').style.opacity = '1'; msg.style.display = 'none'; msg.innerHTML = ''; }, 3000); } }</script></body></html>";
               
               [self.webView loadHTMLString:html baseURL:nil];
           }
@@ -235,7 +243,7 @@ jobs:
                           
                           NSDictionary *json = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
                           if ([json[@"status"] isEqualToString:@"success"]) {
-                              SaveLicenseKey(c);
+                              SaveLicenseKey(c); // 🔥 يتم حفظ الكود في الرام هنا 🔥
                               [self.webView evaluateJavaScript:@"showResult(true, '')" completionHandler:nil];
                           } else {
                               NSString *errMsg = json[@"message"] ?: @"الكود غير صحيح";
@@ -306,9 +314,13 @@ jobs:
           @end
 
           // ==========================================
-          // 🚀 Safe JAILED Patching (هذا هو سبب حل المشكلة للبدون جلبريك) 🔥
+          // 🚀 Safe JAILED Patching
           // ==========================================
           uintptr_t GetBase(const char* name) {
+              if (strstr(name, "ShadowTrackerExtra") || strlen(name) == 0) {
+                  return _dyld_get_image_vmaddr_slide(0) + 0x100000000;
+              }
+              
               uint32_t count = _dyld_image_count();
               for (uint32_t i = 0; i < count; i++) {
                   if (strstr(_dyld_get_image_name(i), name)) return _dyld_get_image_vmaddr_slide(i) + 0x100000000;
@@ -318,11 +330,11 @@ jobs:
 
           bool Patch(uintptr_t addr, std::vector<uint8_t> data) {
               if (addr == 0 || data.empty()) return false;
-              
-              vm_address_t page_start = addr & ~PAGE_MASK;
+              mach_port_t task = mach_task_self();
               vm_size_t size = data.size();
-              
-              // استخدام mprotect للحقن الآمن في الأجهزة المقفلة
+              vm_address_t page_start = addr & ~PAGE_MASK;
+              vm_size_t page_size = PAGE_SIZE;
+
               if (mprotect((void*)page_start, PAGE_SIZE, PROT_READ | PROT_WRITE) == 0) {
                   memcpy((void*)addr, data.data(), size);
                   mprotect((void*)page_start, PAGE_SIZE, PROT_READ | PROT_EXEC);
@@ -330,24 +342,21 @@ jobs:
                   return true;
               }
               
-              // نسخة احتياطية من الحقن
-              kern_return_t kr = vm_protect(mach_task_self(), page_start, PAGE_SIZE, FALSE, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY);
-              if (kr == KERN_SUCCESS) {
-                  memcpy((void*)addr, data.data(), size);
-                  vm_protect(mach_task_self(), page_start, PAGE_SIZE, FALSE, VM_PROT_READ | VM_PROT_EXECUTE);
-                  __builtin___clear_cache((char*)addr, (char*)addr + size);
-                  return true;
-              }
-              
-              return false;
+              kern_return_t kr = vm_protect(task, page_start, page_size, FALSE, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY);
+              if (kr != KERN_SUCCESS) return false;
+
+              memcpy((void*)addr, data.data(), size);
+              vm_protect(task, page_start, page_size, FALSE, VM_PROT_READ | VM_PROT_EXECUTE);
+              __builtin___clear_cache((char*)addr, (char*)addr + size);
+              return true;
           }
 
           // ==========================================
-          // 🚀 Injection Logic (With Forced Telemetry)
+          // 🚀 Injection Logic
           // ==========================================
           void SafeInjectLoop(NSMutableArray *offsetsList) {
               static int attempts = 0;
-              if (attempts > 150) {
+              if (attempts > 50) {
                   [[FalconHUD sharedInstance] updateStatus:@"❌ INJECTION TIMEOUT" color:[UIColor redColor]];
                   return; 
               }
@@ -367,16 +376,16 @@ jobs:
                       NSString *cleanHex = [[item[@"offset_hex"] stringByReplacingOccurrencesOfString:@"0x" withString:@""] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
                       uintptr_t off = strtoull([cleanHex UTF8String], NULL, 16);
                       
-                      // إذا نجح الحقن (وهو ما سينجح الآن بفضل Patch الجديد)
                       if (Patch(base + off, {0x1F, 0x20, 0x03, 0xD5})) {
                           [item setValue:@YES forKey:@"injected"];
                           
-                          // 🔥 الإرسال الإجباري للسيرفر لإضاءة اللمبة بالموقع 🔥
+                          // 🔥 الإرسال الإجباري للسيرفر لإضاءة اللمبة 🔥
                           NSString *hexParam = [item[@"offset_hex"] stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
                           NSString *rawUrl = [NSString stringWithFormat:@"%@?action=mark_injected&hex=%@&code=%@&udid=%@", apiUrlBase, hexParam, GetSavedLicenseKey(), [[UIDevice currentDevice] identifierForVendor].UUIDString];
                           
-                          NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:rawUrl]];
-                          [req setHTTPMethod:@"GET"];
+                          NSURL *urlObj = [NSURL URLWithString:rawUrl];
+                          NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:urlObj cachePolicy:NSURLRequestReloadIgnoringLocalCacheData timeoutInterval:10.0];
+                          
                           [[[NSURLSession sharedSession] dataTaskWithRequest:req completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {}] resume];
                       } else {
                           allInjected = NO;
@@ -408,32 +417,36 @@ jobs:
               NSString *encodedUrl = [rawUrl stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
               
               [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:encodedUrl] completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
-                  if (d) {
-                      NSDictionary *oj = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
-                      if ([oj[@"status"] isEqualToString:@"success"] && oj[@"payload"]) {
-                          NSData *decoded = [[NSData alloc] initWithBase64EncodedString:oj[@"payload"] options:0];
-                          NSArray *list = [NSJSONSerialization JSONObjectWithData:decoded options:0 error:nil];
-                          
-                          if (list && list.count > 0) {
-                              NSMutableArray *mutableList = [NSMutableArray array];
-                              for (NSDictionary *dict in list) {
-                                  [mutableList addObject:[dict mutableCopy]];
-                              }
-                              
-                              dispatch_async(dispatch_get_main_queue(), ^{
-                                  [[FalconHUD sharedInstance] updateStatus:@"🟡 INJECTING..." color:[UIColor yellowColor]];
-                              });
-                              SafeInjectLoop(mutableList);
-                          } else {
-                              dispatch_async(dispatch_get_main_queue(), ^{
-                                  [[FalconHUD sharedInstance] hideHUD];
-                              });
+                  if (e || !d) {
+                      dispatch_async(dispatch_get_main_queue(), ^{ [[FalconHUD sharedInstance] updateStatus:@"❌ NETWORK ERROR" color:[UIColor redColor]]; });
+                      return;
+                  }
+                  NSDictionary *oj = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
+                  
+                  if (oj && [oj[@"status"] isEqualToString:@"success"] && oj[@"payload"]) {
+                      NSData *decoded = [[NSData alloc] initWithBase64EncodedString:oj[@"payload"] options:0];
+                      NSArray *list = [NSJSONSerialization JSONObjectWithData:decoded options:0 error:nil];
+                      
+                      if (list && list.count > 0) {
+                          NSMutableArray *mutableList = [NSMutableArray array];
+                          for (NSDictionary *dict in list) {
+                              [mutableList addObject:[dict mutableCopy]];
                           }
+                          dispatch_async(dispatch_get_main_queue(), ^{
+                              [[FalconHUD sharedInstance] updateStatus:@"🟡 INJECTING..." color:[UIColor yellowColor]];
+                          });
+                          SafeInjectLoop(mutableList);
                       } else {
                           dispatch_async(dispatch_get_main_queue(), ^{
-                              [[FalconHUD sharedInstance] hideHUD];
+                              [[FalconHUD sharedInstance] updateStatus:@"❌ NO OFFSETS" color:[UIColor redColor]];
                           });
                       }
+                  } else {
+                      // 🔥 رادار الأخطاء: إظهار رسالة السيرفر على الشاشة إذا تم رفض الطلب 🔥
+                      dispatch_async(dispatch_get_main_queue(), ^{
+                          NSString *errMsg = oj[@"message"] ? [NSString stringWithFormat:@"❌ %@", oj[@"message"]] : @"❌ SERVER REJECTED";
+                          [[FalconHUD sharedInstance] updateStatus:errMsg color:[UIColor redColor]];
+                      });
                   }
               }] resume];
           }
