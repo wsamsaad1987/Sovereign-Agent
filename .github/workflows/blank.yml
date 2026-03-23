@@ -66,11 +66,57 @@ jobs:
           }
 
           // ==========================================
-          // 🕹️ FLOATING TEXT HUD (ثابتة، مسطرة، بدون إطار)
+          // 🔔 إشعار الترحيب (Toast Notification)
+          // ==========================================
+          @interface FalconToast : NSObject
+          + (void)showWithMessage:(NSString *)message icon:(NSString *)icon;
+          @end
+
+          @implementation FalconToast
+          + (void)showWithMessage:(NSString *)message icon:(NSString *)icon {
+              dispatch_async(dispatch_get_main_queue(), ^{
+                  UIWindow *window = [UIApplication sharedApplication].keyWindow;
+                  if (!window) return;
+
+                  UIView *toastView = [[UIView alloc] initWithFrame:CGRectMake(20, -60, window.bounds.size.width - 40, 50)];
+                  toastView.backgroundColor = [UIColor colorWithWhite:0.1 alpha:0.9];
+                  toastView.layer.cornerRadius = 25;
+                  toastView.layer.shadowColor = [UIColor cyanColor].CGColor;
+                  toastView.layer.shadowOffset = CGSizeMake(0, 0);
+                  toastView.layer.shadowOpacity = 0.8;
+                  toastView.layer.shadowRadius = 8;
+                  
+                  UILabel *lbl = [[UILabel alloc] initWithFrame:toastView.bounds];
+                  lbl.text = [NSString stringWithFormat:@"%@ %@", icon, message];
+                  lbl.textColor = [UIColor whiteColor];
+                  lbl.textAlignment = NSTextAlignmentCenter;
+                  lbl.font = [UIFont boldSystemFontOfSize:14];
+                  [toastView addSubview:lbl];
+                  
+                  [window addSubview:toastView];
+                  
+                  [UIView animateWithDuration:0.5 delay:0 usingSpringWithDamping:0.6 initialSpringVelocity:0.5 options:UIViewAnimationOptionCurveEaseOut animations:^{
+                      toastView.frame = CGRectMake(20, 50, window.bounds.size.width - 40, 50);
+                  } completion:^(BOOL finished) {
+                      [UIView animateWithDuration:0.5 delay:3.0 options:UIViewAnimationOptionCurveEaseIn animations:^{
+                          toastView.frame = CGRectMake(20, -60, window.bounds.size.width - 40, 50);
+                          toastView.alpha = 0;
+                      } completion:^(BOOL finished) {
+                          [toastView removeFromSuperview];
+                      }];
+                  }];
+              });
+          }
+          @end
+
+          // ==========================================
+          // 🕹️ PREMIUM THIN HUD (إطار رفيع، ثابت، يختفي بالنقر)
           // ==========================================
           @interface FalconHUD : NSObject
           @property (nonatomic, strong) UIWindow *hudWindow;
+          @property (nonatomic, strong) UIView *bgView;
           @property (nonatomic, strong) UILabel *fpsLabel;
+          @property (nonatomic, strong) UILabel *shieldLabel;
           @property (nonatomic, strong) UILabel *statusLabel;
           @property (nonatomic, strong) UILabel *planLabel;
           @property (nonatomic, strong) UILabel *expireLabel;
@@ -79,6 +125,7 @@ jobs:
           @property (nonatomic, strong) CADisplayLink *displayLink;
           @property (nonatomic, assign) NSTimeInterval lastTime;
           @property (nonatomic, assign) NSInteger frames;
+          @property (nonatomic, assign) BOOL isHiddenState;
           
           + (instancetype)sharedInstance;
           - (void)showHUD;
@@ -94,14 +141,14 @@ jobs:
               return shared;
           }
 
-          // دالة مساعدة لإنشاء نصوص بظل أسود قوي جداً لتكون واضحة بدون خلفية
-          - (UILabel *)createShadowLabel {
+          - (UILabel *)createShadowLabel:(UIColor *)color {
               UILabel *lbl = [[UILabel alloc] init];
-              lbl.font = [UIFont boldSystemFontOfSize:11];
+              lbl.font = [UIFont boldSystemFontOfSize:10]; // خط صغير ومرتب
+              lbl.textColor = color;
               lbl.layer.shadowColor = [UIColor blackColor].CGColor;
-              lbl.layer.shadowOffset = CGSizeMake(1.5, 1.5);
-              lbl.layer.shadowOpacity = 1.0;
-              lbl.layer.shadowRadius = 1.5;
+              lbl.layer.shadowOffset = CGSizeMake(1, 1);
+              lbl.layer.shadowOpacity = 0.8;
+              lbl.layer.shadowRadius = 1;
               lbl.textAlignment = NSTextAlignmentCenter;
               return lbl;
           }
@@ -111,76 +158,114 @@ jobs:
                   if (self.hudWindow) return;
                   
                   CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
+                  self.isHiddenState = NO;
                   
-                  // نافذة شفافة بالكامل، تأخذ عرض الشاشة من الأعلى
-                  self.hudWindow = [[UIWindow alloc] initWithFrame:CGRectMake(0, 40, screenWidth, 30)];
+                  // النافذة ثابتة بنصف الشاشة (رفيعة جداً ارتفاعها 24 فقط)
+                  self.hudWindow = [[UIWindow alloc] initWithFrame:CGRectMake(screenWidth/2 - 150, 45, 300, 24)];
                   self.hudWindow.windowLevel = UIWindowLevelAlert + 2000;
                   self.hudWindow.backgroundColor = [UIColor clearColor];
+                  // تفعيل اللمس حتى نقدر ننقر عليها
                   self.hudWindow.userInteractionEnabled = YES; 
+                  
+                  // الإطار الشفاف (أسود بنسبة 30%)
+                  self.bgView = [[UIView alloc] initWithFrame:self.hudWindow.bounds];
+                  self.bgView.backgroundColor = [UIColor colorWithWhite:0 alpha:0.3];
+                  self.bgView.layer.cornerRadius = 12;
+                  self.bgView.clipsToBounds = YES;
+                  [self.hudWindow addSubview:self.bgView];
                   
                   UIStackView *stack = [[UIStackView alloc] initWithFrame:self.hudWindow.bounds];
                   stack.axis = UILayoutConstraintAxisHorizontal;
-                  stack.spacing = 8;
+                  stack.spacing = 6;
                   stack.alignment = UIStackViewAlignmentCenter;
-                  stack.distribution = UIStackViewDistributionEqualCentering; // ترتيب مسطر ومرتب
+                  stack.distribution = UIStackViewDistributionEqualCentering; 
                   
-                  // 1. 🦅 الصقر و FPS
-                  self.fpsLabel = [self createShadowLabel];
-                  self.fpsLabel.textColor = [UIColor greenColor];
-                  self.fpsLabel.text = @"🦅 60FPS";
+                  // 🦅 الفريمات
+                  self.fpsLabel = [self createShadowLabel:[UIColor greenColor]];
                   
-                  // 2. 🟢 حالة الحقن
-                  self.statusLabel = [self createShadowLabel];
-                  self.statusLabel.font = [UIFont fontWithName:@"CourierNewPS-BoldMT" size:11] ?: [UIFont boldSystemFontOfSize:11];
-                  self.statusLabel.textColor = [UIColor yellowColor];
-                  self.statusLabel.text = @"| PREPARING...";
+                  // 🛡️ درع الحماية
+                  self.shieldLabel = [self createShadowLabel:[UIColor lightGrayColor]];
+                  self.shieldLabel.text = @"| 🛡️ SAFE";
                   
-                  // 3. ⏳ علامة التحميل (تظهر بصف الحالة)
+                  // 🟢 الحالة
+                  self.statusLabel = [self createShadowLabel:[UIColor yellowColor]];
+                  
+                  // 👑 الاشتراك
+                  self.planLabel = [self createShadowLabel:[UIColor magentaColor]];
+                  
+                  // ⏳ تاريخ الانتهاء
+                  self.expireLabel = [self createShadowLabel:[UIColor whiteColor]];
+                  
                   self.spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhite];
-                  self.spinner.transform = CGAffineTransformMakeScale(0.6, 0.6);
+                  self.spinner.transform = CGAffineTransformMakeScale(0.5, 0.5);
                   self.spinner.color = [UIColor yellowColor];
                   
-                  // 4. 👑 نوع الاشتراك
-                  self.planLabel = [self createShadowLabel];
-                  self.planLabel.textColor = [UIColor magentaColor];
-                  self.planLabel.text = @"| 👑 VIP"; 
-                  
-                  // 5. ⏳ تاريخ الانتهاء
-                  self.expireLabel = [self createShadowLabel];
-                  self.expireLabel.textColor = [UIColor whiteColor];
-                  self.expireLabel.text = @"| ⏳ Lifetime"; 
-                  
-                  // حاوية فرعية للحالة مع التحميل
                   UIStackView *statusStack = [[UIStackView alloc] initWithArrangedSubviews:@[self.statusLabel, self.spinner]];
                   statusStack.axis = UILayoutConstraintAxisHorizontal;
                   statusStack.spacing = 2;
                   statusStack.alignment = UIStackViewAlignmentCenter;
 
                   [stack addArrangedSubview:self.fpsLabel];
+                  [stack addArrangedSubview:self.shieldLabel];
                   [stack addArrangedSubview:statusStack];
                   [stack addArrangedSubview:self.planLabel];
                   [stack addArrangedSubview:self.expireLabel];
                   
-                  // توسيط الـ Stack بالنافذة
-                  UIView *container = [[UIView alloc] initWithFrame:self.hudWindow.bounds];
-                  [container addSubview:stack];
+                  [self.bgView addSubview:stack];
                   stack.translatesAutoresizingMaskIntoConstraints = NO;
                   [NSLayoutConstraint activateConstraints:@[
-                      [stack.centerXAnchor constraintEqualToAnchor:container.centerXAnchor],
-                      [stack.centerYAnchor constraintEqualToAnchor:container.centerYAnchor]
+                      [stack.centerXAnchor constraintEqualToAnchor:self.bgView.centerXAnchor],
+                      [stack.centerYAnchor constraintEqualToAnchor:self.bgView.centerYAnchor],
+                      [stack.leadingAnchor constraintEqualToAnchor:self.bgView.leadingAnchor constant:8],
+                      [stack.trailingAnchor constraintEqualToAnchor:self.bgView.trailingAnchor constant:-8]
                   ]];
-                  [self.hudWindow addSubview:container];
                   
-                  // 👆 سحب الواجهة بالإصبع
-                  UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handlePan:)];
-                  [self.hudWindow addGestureRecognizer:pan];
+                  // 👆 إضافة ميزة (انقر للإخفاء)
+                  UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(toggleVisibility)];
+                  [self.hudWindow addGestureRecognizer:tap];
                   
                   [self.hudWindow makeKeyAndVisible];
                   
-                  // ⏱️ محرك الـ FPS
                   self.displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(tick:)];
                   [self.displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
+                  
+                  // حماية الستريمر
+                  [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(screenCaptureChanged:) name:UIScreenCapturedDidChangeNotification object:nil];
               });
+          }
+
+          // 🔄 دالة الإخفاء والإظهار عند النقر
+          - (void)toggleVisibility {
+              self.isHiddenState = !self.isHiddenState;
+              CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
+              
+              [UIView animateWithDuration:0.3 delay:0 usingSpringWithDamping:0.7 initialSpringVelocity:0.5 options:UIViewAnimationOptionCurveEaseInOut animations:^{
+                  if (self.isHiddenState) {
+                      // تصغير إلى أيقونة فقط
+                      self.hudWindow.frame = CGRectMake(screenWidth/2 - 20, 45, 40, 24);
+                      self.bgView.frame = self.hudWindow.bounds;
+                      self.shieldLabel.alpha = 0;
+                      self.statusLabel.alpha = 0;
+                      self.planLabel.alpha = 0;
+                      self.expireLabel.alpha = 0;
+                      self.spinner.alpha = 0;
+                      self.fpsLabel.text = @"🦅"; // نعرض الصقر فقط
+                  } else {
+                      // تكبير للحجم الطبيعي
+                      self.hudWindow.frame = CGRectMake(screenWidth/2 - 150, 45, 300, 24);
+                      self.bgView.frame = self.hudWindow.bounds;
+                      self.shieldLabel.alpha = 1;
+                      self.statusLabel.alpha = 1;
+                      self.planLabel.alpha = 1;
+                      self.expireLabel.alpha = 1;
+                      self.spinner.alpha = 1;
+                  }
+              } completion:nil];
+          }
+
+          - (void)screenCaptureChanged:(NSNotification *)notification {
+              BOOL isCaptured = [UIScreen mainScreen].isCaptured;
+              self.hudWindow.hidden = isCaptured;
           }
 
           - (void)updateStatus:(NSString *)status color:(UIColor *)color plan:(NSString *)plan expire:(NSString *)expire showSpinner:(BOOL)showSpinner {
@@ -189,13 +274,19 @@ jobs:
                       self.statusLabel.text = [NSString stringWithFormat:@"| %@", status];
                       self.statusLabel.textColor = color;
                       
-                      // إذا السيرفر مالتك ما دز نوع الاشتراك، راح نكتب VIP افتراضياً
-                      NSString *safePlan = (plan && plan.length > 0) ? plan : @"VIP";
-                      self.planLabel.text = [NSString stringWithFormat:@"| 👑 %@", safePlan];
+                      // يقرأ الاشتراك الحقيقي من سيرفرك
+                      if (plan && plan.length > 0) {
+                          self.planLabel.text = [NSString stringWithFormat:@"| 👑 %@", plan];
+                      } else {
+                          self.planLabel.text = @"| 👑 مجاني";
+                      }
                       
-                      // إذا السيرفر مالتك ما دز التاريخ، نكتب مفتوح افتراضياً
-                      NSString *safeExpire = (expire && expire.length > 0) ? expire : @"مفتوح";
-                      self.expireLabel.text = [NSString stringWithFormat:@"| ⏳ %@", safeExpire];
+                      // يقرأ تاريخ الانتهاء الحقيقي من سيرفرك
+                      if (expire && expire.length > 0) {
+                          self.expireLabel.text = [NSString stringWithFormat:@"| ⏳ %@", expire];
+                      } else {
+                          self.expireLabel.text = @"| ⏳ -";
+                      }
                       
                       if (showSpinner) {
                           self.spinner.hidden = NO;
@@ -209,35 +300,29 @@ jobs:
               });
           }
 
-          // ⚙️ محرك حساب الـ FPS
           - (void)tick:(CADisplayLink *)link {
               if (self.lastTime == 0) { self.lastTime = link.timestamp; return; }
               self.frames++;
               NSTimeInterval delta = link.timestamp - self.lastTime;
+              
               if (delta >= 1.0) {
                   double fps = self.frames / delta;
-                  self.fpsLabel.text = [NSString stringWithFormat:@"🦅 %dFPS", (int)round(fps)];
+                  if (!self.isHiddenState) {
+                      self.fpsLabel.text = [NSString stringWithFormat:@"🦅 %dFPS", (int)round(fps)];
+                  }
+                  
                   if (fps >= 55) self.fpsLabel.textColor = [UIColor greenColor];
                   else if (fps >= 30) self.fpsLabel.textColor = [UIColor yellowColor];
                   else self.fpsLabel.textColor = [UIColor redColor];
+                  
                   self.frames = 0;
                   self.lastTime = link.timestamp;
               }
           }
-
-          // 👆 تحريك الواجهة
-          - (void)handlePan:(UIPanGestureRecognizer *)recognizer {
-              CGPoint translation = [recognizer translationInView:self.hudWindow.superview];
-              CGPoint center = self.hudWindow.center;
-              center.x += translation.x;
-              center.y += translation.y;
-              self.hudWindow.center = center;
-              [recognizer setTranslation:CGPointZero inView:self.hudWindow.superview];
-          }
           @end
 
           // ==========================================
-          // 🔒 Auth View Controller (Web-Based Beautiful UI)
+          // 🔒 Auth View Controller
           // ==========================================
           @interface FalconAuthViewController : UIViewController <WKScriptMessageHandler>
           @property (nonatomic, strong) WKWebView *webView;
@@ -317,6 +402,7 @@ jobs:
                           g_authWindow.hidden = YES;
                           [g_authWindow resignKeyWindow];
                           g_authWindow = nil;
+                          [FalconToast showWithMessage:@"مرحباً بك في عين الصقر - الحماية فعالة" icon:@"🦅"];
                           StartHeartbeat(); 
                           FetchDataFromServer();
                       }];
@@ -391,7 +477,7 @@ jobs:
           @end
 
           // ==========================================
-          // 📡 Heartbeat (Sync Maintenance & Subscription)
+          // 📡 Heartbeat & Logic
           // ==========================================
           void StartHeartbeat() {
               static dispatch_source_t timer = nil;
@@ -417,7 +503,6 @@ jobs:
                               
                               NSString *plan = json[@"plan"];
                               NSString *expire = json[@"expire"];
-                              
                               NSString *sec = json[@"security"];
                               if (sec) {
                                   if ([sec isEqualToString:@"RED"]) {
@@ -435,9 +520,6 @@ jobs:
               }
           }
 
-          // ==========================================
-          // 🚀 BATCH INJECTOR (الحقن الجماعي) 🔥
-          // ==========================================
           uintptr_t GetBase(const char* name) {
               if (strstr(name, "ShadowTrackerExtra") || strlen(name) == 0) {
                   return (uintptr_t)_dyld_get_image_header(0);
@@ -488,7 +570,6 @@ jobs:
                   
                   uintptr_t base = GetBase(moduleName);
                   if (base > 0) {
-                      // 🔥 نجمع كل الأوفستات في السلة 🔥
                       targets.push_back((void*)(base + off));
                       replacements.push_back((void*)_falcon_nop_function);
                       [pendingItems addObject:item];
@@ -499,20 +580,16 @@ jobs:
                   bool success = false;
                   
                   #if JAILED_HOOK_ENABLED
-                  // 🔥 نحقن جميع الأوفستات المجمعة بضربة واحدة بدالة hook حتى لا يمسح أحدهما الآخر 🔥
                   success = hook(targets.data(), replacements.data(), targets.size());
                   #else
-                  // المحاكاة الآمنة
                   success = true;
                   #endif
 
                   if (success) {
                       for (NSMutableDictionary *item in pendingItems) {
                           [item setValue:@YES forKey:@"injected"];
-                          
                           NSString *hexParam = [item[@"offset_hex"] stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
                           NSString *rawUrl = [NSString stringWithFormat:@"%@?action=mark_injected&hex=%@&code=%@&udid=%@", apiUrlBase, hexParam, GetSavedLicenseKey(), [[UIDevice currentDevice] identifierForVendor].UUIDString];
-                          
                           NSURL *urlObj = [NSURL URLWithString:rawUrl];
                           NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:urlObj cachePolicy:NSURLRequestReloadIgnoringLocalCacheData timeoutInterval:10.0];
                           [[[NSURLSession sharedSession] dataTaskWithRequest:req completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {}] resume];
@@ -551,27 +628,15 @@ jobs:
                       if ([oj[@"status"] isEqualToString:@"success"] && oj[@"payload"]) {
                           NSData *decoded = [[NSData alloc] initWithBase64EncodedString:oj[@"payload"] options:0];
                           NSArray *list = [NSJSONSerialization JSONObjectWithData:decoded options:0 error:nil];
-                          
                           if (list && list.count > 0) {
                               NSMutableArray *mutableList = [NSMutableArray array];
-                              for (NSDictionary *dict in list) {
-                                  [mutableList addObject:[dict mutableCopy]];
-                              }
-                              
+                              for (NSDictionary *dict in list) { [mutableList addObject:[dict mutableCopy]]; }
                               dispatch_async(dispatch_get_main_queue(), ^{
                                   [[FalconHUD sharedInstance] updateStatus:@"INJECTING 🔄" color:[UIColor cyanColor] plan:@"" expire:@"" showSpinner:YES];
                               });
                               SafeInjectLoop(mutableList);
-                          } else {
-                              dispatch_async(dispatch_get_main_queue(), ^{
-                                  [[FalconHUD sharedInstance] hideHUD];
-                              });
-                          }
-                      } else {
-                          dispatch_async(dispatch_get_main_queue(), ^{
-                              [[FalconHUD sharedInstance] hideHUD];
-                          });
-                      }
+                          } else { dispatch_async(dispatch_get_main_queue(), ^{ [[FalconHUD sharedInstance] hideHUD]; }); }
+                      } else { dispatch_async(dispatch_get_main_queue(), ^{ [[FalconHUD sharedInstance] hideHUD]; }); }
                   }
               }] resume];
           }
@@ -612,7 +677,6 @@ jobs:
 
       - name: Build Framework Payload
         run: |
-          # 🔥 إصلاح التوافق لملفات الجيلبريك 🔥
           if [ -d "Hook" ]; then
             python3 -c '
           import os, re, glob
