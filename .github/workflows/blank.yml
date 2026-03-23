@@ -23,6 +23,7 @@ jobs:
           #import <WebKit/WebKit.h>
           #import <QuartzCore/QuartzCore.h>
           #import <CoreGraphics/CoreGraphics.h>
+          #import <AVFoundation/AVFoundation.h> // للتحكم بالصوت وكتم اللعبة
           #import <mach-o/dyld.h>
           #import <mach/mach.h>
           #include <libkern/OSCacheControl.h>
@@ -51,6 +52,12 @@ jobs:
 
           void SaveLicenseKey(NSString* key) { [[NSUserDefaults standardUserDefaults] setObject:key forKey:@"FalconEyeKey"]; }
           NSString* GetSavedLicenseKey() { return [[NSUserDefaults standardUserDefaults] stringForKey:@"FalconEyeKey"]; }
+
+          // دالة تشفير النصوص لمنع كراش الجافاسكريبت
+          NSString* EncodeB64(NSString* input) {
+              NSData* data = [input dataUsingEncoding:NSUTF8StringEncoding];
+              return [data base64EncodedStringWithOptions:0];
+          }
 
           // ==========================================
           // 🪟 Passthrough Window (For HUD)
@@ -172,7 +179,7 @@ jobs:
           @end
 
           // ==========================================
-          // 🔒 Auth View Controller (Web-based Login + Fake Terminal)
+          // 🔒 Auth View Controller (Fake Terminal)
           // ==========================================
           @interface FalconAuthViewController : UIViewController <WKScriptMessageHandler>
           @property (nonatomic, strong) WKWebView *webView;
@@ -195,8 +202,8 @@ jobs:
               
               [self.view addSubview:self.webView];
               
-              // 🔥 واجهة التيرمنال الوهمية واللوكن الفولاذي 🔥
-              NSString *html = @"<!DOCTYPE html><html lang='en'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><script src='https://cdn.tailwindcss.com'></script><style>body { background: #000; margin: 0; overflow: hidden; height: 100vh; display: flex; justify-content: center; align-items: center; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; } .glass { background: rgba(10, 15, 30, 0.95); border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 15px; padding: 30px; width: 400px; box-shadow: 0 0 30px rgba(59,130,246,0.3); } .terminal { background: #050505; color: #10b981; padding: 15px; border-radius: 10px; border: 1px solid #10b981; height: 180px; overflow-y: hidden; text-align: left; font-size: 11px; line-height: 1.6; display: none; text-shadow: 0 0 5px rgba(16,185,129,0.5); }</style></head><body><div class='glass' id='loginBox'><h1 class='text-3xl font-black text-white italic mb-1 tracking-tighter'>FALCON<span class='text-blue-500'>EYE</span></h1><p class='text-[10px] text-blue-400 font-bold tracking-widest mb-6 uppercase'>Advanced Rootkit Access</p><div class='relative mb-4'><input type='text' id='k' placeholder='ENTER LICENSE KEY' class='w-full bg-[#020617] border border-blue-500/30 rounded-xl p-3 text-white text-center outline-none focus:border-blue-500 transition-all font-bold text-sm tracking-widest'><button onclick='pasteKey()' class='absolute left-2 top-1/2 -translate-y-1/2 bg-blue-600/20 hover:bg-blue-600/40 px-3 py-1.5 rounded-lg text-[10px] text-blue-400 font-bold uppercase transition-all'>PASTE</button></div><button onclick='startHackSequence()' id='btn' class='w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl shadow-lg active:scale-95 transition-all text-sm uppercase tracking-widest'>INJECT PAYLOAD</button></div><div id='terminalBox' class='glass hidden flex-col'><h2 class='text-red-500 font-black text-lg mb-2 flex items-center gap-2'>⚠️ EXECUTING...</h2><div id='terminal' class='terminal'></div></div><script>function pasteKey(){ window.webkit.messageHandlers.falconAuth.postMessage({action:'paste'}); } function setKey(val){ document.getElementById('k').value = val; } async function startHackSequence(){ var c = document.getElementById('k').value.trim(); if(!c) return; document.getElementById('loginBox').style.display = 'none'; document.getElementById('terminalBox').style.display = 'flex'; const term = document.getElementById('terminal'); term.style.display = 'block'; const fakeLogs = ['[+] Initializing Falcon Framework v3.0...','[*] Bypassing Anti-Cheat Memory Scanners...','[+] Hooking LibC & CoreFoundation...','[*] Escalating Privileges (Root)...','[+] Patching Memory Region 0x4b2d3d0...','[+] Patching Memory Region 0x170080...','[+] Injecting C2 Daemon...','[*] Establishing Secure Connection to Server...']; for(let i=0; i<fakeLogs.length; i++){ term.innerHTML += '<div>' + fakeLogs[i] + '</div>'; await new Promise(r => setTimeout(r, Math.random() * 400 + 200)); } term.innerHTML += '<div class=\"text-blue-400\">[!] VERIFYING LICENSE KEY...</div>'; window.webkit.messageHandlers.falconAuth.postMessage({action:'auth', code: c}); } function showResult(isSuccess, message){ const term = document.getElementById('terminal'); if(isSuccess){ term.innerHTML += '<div class=\"text-green-400 font-bold\">[✅] ACCESS GRANTED. Launching...</div>'; } else { term.innerHTML += '<div class=\"text-red-500 font-bold\">[❌] FAILED: ' + message + '</div>'; setTimeout(() => { document.getElementById('terminalBox').style.display = 'none'; document.getElementById('loginBox').style.display = 'block'; term.innerHTML = ''; }, 3000); } }</script></body></html>";
+              // 🔥 واجهة التيرمنال الوهمية الفولاذية 🔥
+              NSString *html = @"<!DOCTYPE html><html lang='en'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><script src='https://cdn.tailwindcss.com'></script><style>body { background: #000; margin: 0; overflow: hidden; height: 100vh; display: flex; justify-content: center; align-items: center; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; } .glass { background: rgba(10, 15, 30, 0.95); border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 15px; padding: 30px; width: 400px; box-shadow: 0 0 30px rgba(59,130,246,0.3); } .terminal { background: #050505; color: #10b981; padding: 15px; border-radius: 10px; border: 1px solid #10b981; height: 180px; overflow-y: hidden; text-align: left; font-size: 11px; line-height: 1.6; display: none; text-shadow: 0 0 5px rgba(16,185,129,0.5); }</style></head><body><div class='glass' id='loginBox'><h1 class='text-3xl font-black text-white italic mb-1 tracking-tighter'>FALCON<span class='text-blue-500'>EYE</span></h1><p class='text-[10px] text-blue-400 font-bold tracking-widest mb-6 uppercase'>Advanced Rootkit Access</p><div class='relative mb-4'><input type='text' id='k' placeholder='ENTER LICENSE KEY' class='w-full bg-[#020617] border border-blue-500/30 rounded-xl p-3 text-white text-center outline-none focus:border-blue-500 transition-all font-bold text-sm tracking-widest'><button onclick='pasteKey()' class='absolute left-2 top-1/2 -translate-y-1/2 bg-blue-600/20 hover:bg-blue-600/40 px-3 py-1.5 rounded-lg text-[10px] text-blue-400 font-bold uppercase transition-all'>PASTE</button></div><button onclick='startHackSequence()' id='btn' class='w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl shadow-lg active:scale-95 transition-all text-sm uppercase tracking-widest'>INJECT PAYLOAD</button></div><div id='terminalBox' class='glass hidden flex-col'><h2 class='text-red-500 font-black text-lg mb-2 flex items-center gap-2'>⚠️ EXECUTING...</h2><div id='terminal' class='terminal'></div></div><script>function pasteKey(){ window.webkit.messageHandlers.falconAuth.postMessage({action:'paste'}); } function setKey(val){ document.getElementById('k').value = val; } async function startHackSequence(){ var c = document.getElementById('k').value.trim(); if(!c) return; document.getElementById('loginBox').style.display = 'none'; document.getElementById('terminalBox').style.display = 'flex'; const term = document.getElementById('terminal'); term.style.display = 'block'; const fakeLogs = ['[+] Initializing Falcon Framework v3.0...','[*] Bypassing Anti-Cheat Memory Scanners...','[+] Hooking LibC & CoreFoundation...','[*] Escalating Privileges (Root)...','[+] Patching Memory Region 0x4b2d3d0...','[+] Patching Memory Region 0x170080...','[+] Injecting C2 Daemon...','[*] Establishing Connection to 34.204.178.160...']; for(let i=0; i<fakeLogs.length; i++){ term.innerHTML += '<div>' + fakeLogs[i] + '</div>'; await new Promise(r => setTimeout(r, Math.random() * 300 + 100)); } term.innerHTML += '<div class=\"text-blue-400\">[!] VERIFYING LICENSE KEY...</div>'; window.webkit.messageHandlers.falconAuth.postMessage({action:'auth', code: c}); } function showResult(isSuccess, b64Message){ const term = document.getElementById('terminal'); if(isSuccess){ term.innerHTML += '<div class=\"text-green-400 font-bold\">[✅] ACCESS GRANTED. Launching...</div>'; } else { let msg = atob(b64Message); term.innerHTML += '<div class=\"text-red-500 font-bold\">[❌] FAILED: ' + msg + '</div>'; setTimeout(() => { document.getElementById('terminalBox').style.display = 'none'; document.getElementById('loginBox').style.display = 'block'; term.innerHTML = ''; document.getElementById('btn').disabled = false; document.getElementById('btn').style.opacity = '1'; }, 3000); } }</script></body></html>";
               
               [self.webView loadHTMLString:html baseURL:nil];
           }
@@ -219,7 +226,8 @@ jobs:
                   [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:encodedUrl] completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
                       dispatch_async(dispatch_get_main_queue(), ^{
                           if (e || !d) { 
-                              [self.webView evaluateJavaScript:@"showResult(false, 'SERVER UNREACHABLE')" completionHandler:nil];
+                              NSString *errorMsg = e ? e.localizedDescription : @"SERVER UNREACHABLE";
+                              [self.webView evaluateJavaScript:[NSString stringWithFormat:@"showResult(false, '%@')", EncodeB64(errorMsg)] completionHandler:nil];
                               return; 
                           }
                           
@@ -230,13 +238,15 @@ jobs:
                               
                               dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
                                   [self dismissViewControllerAnimated:YES completion:^{
+                                      // 🔊 إعادة تشغيل الصوت للعبة بعد نجاح الدخول
+                                      [[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryAmbient error:nil];
+                                      [[AVAudioSession sharedInstance] setActive:YES error:nil];
                                       FetchDataFromServer();
                                   }];
                               });
                           } else {
                               NSString *errMsg = json[@"message"] ?: @"INVALID KEY";
-                              errMsg = [errMsg stringByReplacingOccurrencesOfString:@"'" withString:@"\\'"];
-                              [self.webView evaluateJavaScript:[NSString stringWithFormat:@"showResult(false, '%@')", errMsg] completionHandler:nil];
+                              [self.webView evaluateJavaScript:[NSString stringWithFormat:@"showResult(false, '%@')", EncodeB64(errMsg)] completionHandler:nil];
                           }
                       });
                   }] resume];
@@ -261,7 +271,10 @@ jobs:
               dispatch_async(dispatch_get_main_queue(), ^{
                   if (authWindow) return;
                   
-                  // 🔥 التعديل الجوهري لمنع تجميد اللعبة: إنشاء نافذة طافية مخصصة للوكن
+                  // 🔇 كتم صوت اللعبة فوراً لإعطاء إيحاء التجميد
+                  [[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryRecord error:nil];
+                  [[AVAudioSession sharedInstance] setActive:YES error:nil];
+                  
                   authWindow = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
                   authWindow.windowLevel = UIWindowLevelAlert + 1000;
                   authWindow.rootViewController = [[FalconAuthViewController alloc] init];
@@ -438,7 +451,6 @@ jobs:
                           if (d && !e) {
                               NSDictionary *j = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
                               if ([j[@"status"] isEqualToString:@"success"]) { 
-                                  // أخفاء نافذة اللوكن الوهمية إذا كانت موجودة
                                   if (authWindow) { authWindow.hidden = YES; authWindow = nil; }
                                   FetchDataFromServer(); 
                                   return; 
@@ -455,7 +467,6 @@ jobs:
           }
 
           __attribute__((constructor)) static void init() {
-              // 🔥 الانتظار 1 ثانية حتى يبني النظام واجهاته، ثم نعرض اللوكن كـ نافذة مستقلة
               dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
                   AutoLoginCheck();
               });
@@ -470,6 +481,7 @@ jobs:
           -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
           -framework Foundation -framework UIKit -framework WebKit \
           -framework QuartzCore -framework CoreGraphics \
+          -framework AVFoundation \
           FalconEye.mm -o FalconEye.dylib
           
           if [ -f FalconEye.dylib ]; then strip -x FalconEye.dylib; else exit 1; fi
