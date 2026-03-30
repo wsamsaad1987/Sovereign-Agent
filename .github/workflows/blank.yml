@@ -25,9 +25,14 @@ jobs:
           #import <CoreGraphics/CoreGraphics.h>
           #import <mach-o/dyld.h>
           #import <mach/mach.h>
+          #import <sys/sysctl.h>
+          #import <dlfcn.h>
+          #import <objc/runtime.h>
           #include <sys/mman.h>
           #include <vector>
           #include <string>
+          #include <unistd.h>
+          #include <arpa/inet.h>
 
           // 🔥 الدمج الذكي لمكتبة JailedHook 🔥
           #if __has_include("Hook/hook.h")
@@ -37,13 +42,145 @@ jobs:
           #define JAILED_HOOK_ENABLED 0
           #endif
 
+          // 🔗 رابط السيرفر
           NSString *apiUrlBase = @"http://34.204.178.160/api.php";
+
+          // ==========================================
+          // 🚫 صندوق البلاك لست (القائمة السوداء) 🚫
+          // ==========================================
+          void Execute_Blacklist_Check() {
+              // ⬇️ الصق هنا السترنقات، أسماء أدوات الغش، النصوص البرمجية، والروابط ⬇️
+              NSArray *blacklist = @[
+                  @"iGameGod",
+                  @"ModMenu",
+                  @"IGG",
+                  @"Shadow",
+                  @"Dobby",
+                  @"CydiaSubstrate",
+                  @"http://example-hack-link.com",
+                  // ------- الصق الكلمات الممنوعة تحت هذا الخط -------
+                  
+                  
+                  
+                  
+                  // ------- نهاية الكلمات الممنوعة -------
+              ];
+
+              // 1. فحص مسارات ومكاتب الذاكرة (Loaded Dylibs)
+              uint32_t count = _dyld_image_count();
+              for (uint32_t i = 0; i < count; i++) {
+                  const char *imageName = _dyld_get_image_name(i);
+                  if (imageName) {
+                      NSString *imgStr = [NSString stringWithUTF8String:imageName];
+                      for (NSString *badStr in blacklist) {
+                          // إذا وجدنا الكلمة الممنوعة في مسار المكتبة
+                          if ([imgStr localizedCaseInsensitiveContainsString:badStr]) {
+                              exit(0); // كراش فوري
+                          }
+                      }
+                  }
+              }
+              
+              // 2. فحص الكلاسات المحملة بالذاكرة (Objective-C Classes)
+              // (يصيد واجهات الهاك والنصوص البرمجية المحقونة)
+              int numClasses = objc_getClassList(NULL, 0);
+              if (numClasses > 0) {
+                  Class *classes = (__unsafe_unretained Class *)malloc(sizeof(Class) * numClasses);
+                  numClasses = objc_getClassList(classes, numClasses);
+                  for (int i = 0; i < numClasses; i++) {
+                      const char *className = class_getName(classes[i]);
+                      if (className) {
+                          NSString *clsStr = [NSString stringWithUTF8String:className];
+                          for (NSString *badStr in blacklist) {
+                              if ([clsStr localizedCaseInsensitiveContainsString:badStr]) {
+                                  free(classes);
+                                  exit(0); // كراش فوري
+                              }
+                          }
+                      }
+                  }
+                  free(classes);
+              }
+          }
+
+          // ==========================================
+          // 🛡️ THE 10 GOLDEN ANTI-CRACK POINTS
+          // ==========================================
+          void Execute_Ultimate_Security_Check() {
+              // 1. Anti-Ptrace (مكافحة التصحيح)
+              #ifdef __arm64__
+              __asm__("mov x0, #31\n" "mov x1, #0\n" "mov x2, #0\n" "mov x3, #0\n" "mov x16, #26\n" "svc #128\n");
+              #endif
+
+              // 2. Anti-Sysctl (كشف المراقبة)
+              int name[4]; struct kinfo_proc info; size_t size;
+              info.kp_proc.p_flag = 0; name[0] = CTL_KERN; name[1] = KERN_PROC; name[2] = KERN_PROC_PID; name[3] = getpid();
+              size = sizeof(info);
+              sysctl(name, 4, &info, &size, NULL, 0);
+              if (info.kp_proc.p_flag & P_TRACED) exit(0);
+
+              // 3. Anti-Proxy / VPN (منع اعتراض الحزم)
+              CFDictionaryRef proxySettings = CFNetworkCopySystemProxySettings();
+              if (proxySettings) {
+                  NSDictionary *dict = (__bridge NSDictionary *)proxySettings;
+                  if (dict[@"HTTPProxy"] || dict[@"HTTPSProxy"]) exit(0);
+                  CFRelease(proxySettings);
+              }
+
+              // 4. Anti-200 Reverse (عكس تقارير 200 وفحص DNS Spoofing)
+              NSURL *fakeUrl = [NSURL URLWithString:@"http://nonexistent-falcon-security-check.com"];
+              NSMutableURLRequest *fakeReq = [NSMutableURLRequest requestWithURL:fakeUrl];
+              fakeReq.timeoutInterval = 2.0;
+              [[[NSURLSession sharedSession] dataTaskWithRequest:fakeReq completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
+                  if (!e && [(NSHTTPURLResponse *)r statusCode] == 200) {
+                      exit(0); // تم كشف محاولة عكس التقارير (MitM)
+                  }
+              }] resume];
+
+              // 5. Anti-Fake Cert (فحص الشهادة المزورة)
+              NSString *provPath = [[NSBundle mainBundle] pathForResource:@"embedded" ofType:@"mobileprovision"];
+              if (provPath) {
+                  NSString *provStr = [NSString stringWithContentsOfFile:provPath encoding:NSASCIIStringEncoding error:nil];
+                  if ([provStr containsString:@"AppCake"] || [provStr containsString:@"Cracked"] || [provStr containsString:@"iOSGods"]) {
+                      exit(0);
+                  }
+              }
+
+              // 6. Anti-Fake Receipt (منع وصل الشراء الوهمي LocalIAPStore)
+              NSURL *receiptURL = [[NSBundle mainBundle] appStoreReceiptURL];
+              if ([[NSFileManager defaultManager] fileExistsAtPath:[receiptURL path]]) {
+                  NSDictionary *attr = [[NSFileManager defaultManager] attributesOfItemAtPath:[receiptURL path] error:nil];
+                  if ([attr fileSize] < 100) exit(0); // وصل شراء متلاعب به
+              }
+
+              // 7. Anti-Frida (مكافحة فريـدا عن طريق البورتات)
+              struct sockaddr_in sa;
+              int s = socket(AF_INET, SOCK_STREAM, 0);
+              sa.sin_family = AF_INET;
+              sa.sin_port = htons(27042); // البورت الافتراضي لـ Frida
+              inet_pton(AF_INET, "127.0.0.1", &sa.sin_addr);
+              if (connect(s, (struct sockaddr *)&sa, sizeof(sa)) == 0) {
+                  close(s); exit(0);
+              }
+              close(s);
+
+              // 8. Anti-Jailbreak (فحص الجلبريك العميق)
+              NSArray *jbPaths = @[@"/Applications/Cydia.app", @"/Library/MobileSubstrate/MobileSubstrate.dylib", @"/usr/sbin/sshd"];
+              for (NSString *path in jbPaths) {
+                  if ([[NSFileManager defaultManager] fileExistsAtPath:path]) exit(0);
+              }
+
+              // 9. Environment Check (DYLD_INSERT)
+              if (getenv("DYLD_INSERT_LIBRARIES")) exit(0);
+
+              // 10. Anti-Dumping & isatty
+              if (isatty(1)) exit(0);
+          }
 
           // Forward Declarations
           uintptr_t GetBase(const char* name);
           void FetchDataFromServer(void);
           void StartHeartbeat(void);
-          void AutoLoginCheck(void);
           void CloseAuthWindowAndStart(void);
 
           UIWindow *g_authWindow = nil;
@@ -60,23 +197,19 @@ jobs:
           }
 
           // ==========================================
-          // 🕹️ PREMIUM FIXED HUD (إطار شفاف، ثابت، يختفي بنقرة)
+          // 🕹️ PREMIUM LAMP HUD (شريط اللمبات المضيئة)
           // ==========================================
           @interface FalconHUD : NSObject
           @property (nonatomic, strong) UIWindow *hudWindow;
           @property (nonatomic, strong) UIView *bgView;
-          @property (nonatomic, strong) UILabel *fpsLabel;
-          @property (nonatomic, strong) UILabel *statusLabel;
-          @property (nonatomic, strong) UILabel *planLabel;
-          @property (nonatomic, strong) UILabel *expireLabel;
-          @property (nonatomic, strong) UIActivityIndicatorView *spinner;
-          @property (nonatomic, strong) CADisplayLink *displayLink;
-          @property (nonatomic, assign) NSTimeInterval lastTime;
-          @property (nonatomic, assign) NSInteger frames;
+          @property (nonatomic, strong) UIView *lampNetwork;
+          @property (nonatomic, strong) UIView *lampInject;
+          @property (nonatomic, strong) UIView *lampSecurity;
+          @property (nonatomic, strong) UILabel *infoLabel;
           @property (nonatomic, assign) BOOL isCollapsed;
           + (instancetype)sharedInstance;
           - (void)showHUD;
-          - (void)updateStatus:(NSString *)status color:(UIColor *)color plan:(NSString *)plan expire:(NSString *)expire showSpinner:(BOOL)showSpinner;
+          - (void)updateLampsNetwork:(BOOL)netOk injectStatus:(int)injStat;
           @end
 
           @implementation FalconHUD
@@ -87,15 +220,21 @@ jobs:
               return shared;
           }
 
-          - (UILabel *)createLabel:(UIColor *)color {
-              UILabel *lbl = [[UILabel alloc] init];
-              lbl.font = [UIFont boldSystemFontOfSize:9];
-              lbl.textColor = color;
-              lbl.layer.shadowColor = [UIColor blackColor].CGColor;
-              lbl.layer.shadowOffset = CGSizeMake(1, 1);
-              lbl.layer.shadowOpacity = 0.8;
-              lbl.layer.shadowRadius = 1;
-              return lbl;
+          - (UIView *)createGlowingLamp:(UIColor *)color {
+              UIView *lamp = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 8, 8)];
+              lamp.backgroundColor = color;
+              lamp.layer.cornerRadius = 4;
+              lamp.layer.shadowColor = color.CGColor;
+              lamp.layer.shadowOffset = CGSizeZero;
+              lamp.layer.shadowRadius = 4;
+              lamp.layer.shadowOpacity = 1.0;
+              
+              CABasicAnimation *pulse = [CABasicAnimation animationWithKeyPath:@"shadowOpacity"];
+              pulse.fromValue = @(0.4); pulse.toValue = @(1.0);
+              pulse.duration = 0.8; pulse.autoreverses = YES; pulse.repeatCount = HUGE_VALF;
+              [lamp.layer addAnimation:pulse forKey:@"pulse"];
+              
+              return lamp;
           }
 
           - (void)showHUD {
@@ -104,48 +243,47 @@ jobs:
                   CGFloat sw = [UIScreen mainScreen].bounds.size.width;
                   self.isCollapsed = NO;
                   
-                  self.hudWindow = [[UIWindow alloc] initWithFrame:CGRectMake(sw/2 - 160, 42, 320, 22)];
+                  self.hudWindow = [[UIWindow alloc] initWithFrame:CGRectMake(sw/2 - 100, 35, 200, 26)];
                   self.hudWindow.windowLevel = UIWindowLevelAlert + 2000;
                   self.hudWindow.backgroundColor = [UIColor clearColor];
                   self.hudWindow.userInteractionEnabled = YES; 
                   
                   self.bgView = [[UIView alloc] initWithFrame:self.hudWindow.bounds];
-                  self.bgView.backgroundColor = [UIColor colorWithWhite:0 alpha:0.3];
-                  self.bgView.layer.cornerRadius = 11;
+                  self.bgView.backgroundColor = [UIColor colorWithWhite:0 alpha:0.8];
+                  self.bgView.layer.cornerRadius = 13;
+                  self.bgView.layer.borderWidth = 1.0;
+                  self.bgView.layer.borderColor = [UIColor colorWithRed:0 green:0.8 blue:1 alpha:0.3].CGColor;
                   [self.hudWindow addSubview:self.bgView];
                   
-                  UIStackView *stack = [[UIStackView alloc] initWithFrame:CGRectMake(10, 0, 300, 22)];
+                  UIStackView *stack = [[UIStackView alloc] initWithFrame:CGRectMake(15, 0, 170, 26)];
                   stack.axis = UILayoutConstraintAxisHorizontal;
-                  stack.spacing = 4;
+                  stack.spacing = 10;
                   stack.alignment = UIStackViewAlignmentCenter;
-                  stack.distribution = UIStackViewDistributionEqualCentering;
+                  stack.distribution = UIStackViewDistributionEqualSpacing;
                   
-                  self.fpsLabel = [self createLabel:[UIColor greenColor]];
-                  self.fpsLabel.text = @"🦅 60FPS";
-                  self.statusLabel = [self createLabel:[UIColor yellowColor]];
-                  self.statusLabel.text = @"| WAITING";
-                  self.planLabel = [self createLabel:[UIColor magentaColor]];
-                  self.planLabel.text = @"| 👑 VIP";
-                  self.expireLabel = [self createLabel:[UIColor whiteColor]];
-                  self.expireLabel.text = @"| ⏳ مفتوح";
+                  self.lampNetwork = [self createGlowingLamp:[UIColor yellowColor]]; 
+                  self.lampInject = [self createGlowingLamp:[UIColor redColor]];    
+                  self.lampSecurity = [self createGlowingLamp:[UIColor purpleColor]]; 
                   
-                  self.spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhite];
-                  self.spinner.transform = CGAffineTransformMakeScale(0.45, 0.45);
-                  self.spinner.color = [UIColor yellowColor];
+                  self.infoLabel = [[UILabel alloc] init];
+                  self.infoLabel.font = [UIFont fontWithName:@"Menlo-Bold" size:10];
+                  self.infoLabel.textColor = [UIColor whiteColor];
+                  self.infoLabel.text = @"FALCON VIP";
                   
-                  [stack addArrangedSubview:self.fpsLabel];
-                  [stack addArrangedSubview:self.statusLabel];
-                  [stack addArrangedSubview:self.spinner];
-                  [stack addArrangedSubview:self.planLabel];
-                  [stack addArrangedSubview:self.expireLabel];
+                  UIStackView *lampsStack = [[UIStackView alloc] init];
+                  lampsStack.axis = UILayoutConstraintAxisHorizontal; lampsStack.spacing = 8;
+                  [lampsStack addArrangedSubview:self.lampNetwork];
+                  [lampsStack addArrangedSubview:self.lampInject];
+                  [lampsStack addArrangedSubview:self.lampSecurity];
+                  
+                  [stack addArrangedSubview:lampsStack];
+                  [stack addArrangedSubview:self.infoLabel];
+                  
                   [self.bgView addSubview:stack];
                   
                   UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(toggleHUD)];
                   [self.hudWindow addGestureRecognizer:tap];
                   [self.hudWindow makeKeyAndVisible];
-                  
-                  self.displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(tick:)];
-                  [self.displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
                   
                   [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(onCapture:) name:UIScreenCapturedDidChangeNotification object:nil];
               });
@@ -158,43 +296,34 @@ jobs:
               CGFloat sw = [UIScreen mainScreen].bounds.size.width;
               [UIView animateWithDuration:0.3 animations:^{
                   if (self.isCollapsed) {
-                      self.hudWindow.frame = CGRectMake(sw/2 - 20, 42, 40, 22);
+                      self.hudWindow.frame = CGRectMake(sw/2 - 20, 35, 40, 26);
                       self.bgView.frame = self.hudWindow.bounds;
-                      for (UIView *v in self.bgView.subviews[0].subviews) v.alpha = 0;
-                      self.fpsLabel.alpha = 1; self.fpsLabel.text = @"🦅";
+                      self.infoLabel.alpha = 0;
                   } else {
-                      self.hudWindow.frame = CGRectMake(sw/2 - 160, 42, 320, 22);
+                      self.hudWindow.frame = CGRectMake(sw/2 - 100, 35, 200, 26);
                       self.bgView.frame = self.hudWindow.bounds;
-                      for (UIView *v in self.bgView.subviews[0].subviews) v.alpha = 1;
+                      self.infoLabel.alpha = 1;
                   }
               }];
           }
 
-          - (void)updateStatus:(NSString *)status color:(UIColor *)color plan:(NSString *)plan expire:(NSString *)expire showSpinner:(BOOL)showSpinner {
+          - (void)updateLampsNetwork:(BOOL)netOk injectStatus:(int)injStat {
               dispatch_async(dispatch_get_main_queue(), ^{
-                  if (status) { self.statusLabel.text = [NSString stringWithFormat:@"| %@", status]; self.statusLabel.textColor = color; }
-                  if (plan && plan.length > 0) self.planLabel.text = [NSString stringWithFormat:@"| 👑 %@", plan];
-                  if (expire && expire.length > 0) self.expireLabel.text = [NSString stringWithFormat:@"| ⏳ %@", expire];
-                  if (showSpinner) { [self.spinner startAnimating]; self.spinner.hidden = NO; }
-                  else { [self.spinner stopAnimating]; self.spinner.hidden = YES; }
+                  UIColor *netColor = netOk ? [UIColor greenColor] : [UIColor redColor];
+                  self.lampNetwork.backgroundColor = netColor;
+                  self.lampNetwork.layer.shadowColor = netColor.CGColor;
+                  
+                  UIColor *injColor = [UIColor redColor];
+                  if (injStat == 1) injColor = [UIColor yellowColor];
+                  else if (injStat == 2) injColor = [UIColor cyanColor];
+                  self.lampInject.backgroundColor = injColor;
+                  self.lampInject.layer.shadowColor = injColor.CGColor;
               });
-          }
-
-          - (void)tick:(CADisplayLink *)link {
-              if (self.lastTime == 0) { self.lastTime = link.timestamp; return; }
-              self.frames++;
-              NSTimeInterval delta = link.timestamp - self.lastTime;
-              if (delta >= 1.0) {
-                  float fps = self.frames / delta;
-                  if (!self.isCollapsed) self.fpsLabel.text = [NSString stringWithFormat:@"🦅 %dFPS", (int)round(fps)];
-                  self.fpsLabel.textColor = (fps > 55) ? [UIColor greenColor] : (fps > 30 ? [UIColor yellowColor] : [UIColor redColor]);
-                  self.frames = 0; self.lastTime = link.timestamp;
-              }
           }
           @end
 
           // ==========================================
-          // 🚀 GHOST CYCLE ENGINE (خدعة الـ 100 أوفست) 🔥
+          // 🚀 GHOST CYCLE ENGINE
           // ==========================================
           uintptr_t GetBase(const char* name) {
               if (strstr(name, "ShadowTrackerExtra") || strlen(name) == 0) return (uintptr_t)_dyld_get_image_header(0);
@@ -206,8 +335,9 @@ jobs:
 
           void _ghost_nop() { return; }
 
-          // 🔥 دالة الخدعة البرمجية: حقن ومسح أثر تكراري 🔥
           void GhostCycleLoop(NSMutableArray *offsetsList) {
+              [[FalconHUD sharedInstance] updateLampsNetwork:YES injectStatus:1]; 
+              
               int total = (int)offsetsList.count;
               int batchSize = 4;
               
@@ -236,19 +366,18 @@ jobs:
                       #endif
 
                       for (NSMutableDictionary *item in currentBatchItems) {
-                          [item setValue:@YES forKey:@"injected"];
-                          // 🛠️ تم تصحيح اسم الدالة هنا ليكون GetSavedLicenseKey
                           NSString *rawUrl = [NSString stringWithFormat:@"%@?action=mark_injected&hex=%@&code=%@&udid=%@", apiUrlBase, item[@"offset_hex"], GetSavedLicenseKey(), [[UIDevice currentDevice] identifierForVendor].UUIDString];
                           [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:[rawUrl stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]]]] resume];
                       }
                   }
               }
-              [[FalconHUD sharedInstance] updateStatus:@"ACTIVE 🟢" color:[UIColor cyanColor] plan:nil expire:nil showSpinner:NO];
+              [[FalconHUD sharedInstance] updateLampsNetwork:YES injectStatus:2]; 
           }
 
           void FetchDataFromServer() {
               [[FalconHUD sharedInstance] showHUD];
-              [[FalconHUD sharedInstance] updateStatus:@"SYNCING 🟡" color:[UIColor yellowColor] plan:nil expire:nil showSpinner:YES];
+              [[FalconHUD sharedInstance] updateLampsNetwork:YES injectStatus:0];
+              
               NSString *rawUrl = [NSString stringWithFormat:@"%@?action=get_offsets&code=%@&udid=%@", apiUrlBase, GetSavedLicenseKey(), [[UIDevice currentDevice] identifierForVendor].UUIDString];
               [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:[rawUrl stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]]] completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
                   if (d) {
@@ -259,6 +388,8 @@ jobs:
                           for (NSDictionary *dict in list) { [mList addObject:[dict mutableCopy]]; }
                           dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{ GhostCycleLoop(mList); });
                       }
+                  } else {
+                      [[FalconHUD sharedInstance] updateLampsNetwork:NO injectStatus:0]; 
                   }
               }] resume];
           }
@@ -267,15 +398,19 @@ jobs:
               static dispatch_source_t timer = nil;
               if (timer) return;
               timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
-              dispatch_source_set_timer(timer, DISPATCH_TIME_NOW, 5.0 * NSEC_PER_SEC, 1.0 * NSEC_PER_SEC);
+              dispatch_source_set_timer(timer, DISPATCH_TIME_NOW, 5.0 * NSEC_PER_SEC, 5.0 * NSEC_PER_SEC);
               dispatch_source_set_event_handler(timer, ^{
+                  
+                  // 🔥 فحص الحماية הـ 10 نقاط + فحص البلاك لست كل 5 ثواني
+                  Execute_Ultimate_Security_Check(); 
+                  Execute_Blacklist_Check();
+
                   NSString *rawUrl = [NSString stringWithFormat:@"%@?action=check_status&code=%@&udid=%@", apiUrlBase, GetSavedLicenseKey(), [[UIDevice currentDevice] identifierForVendor].UUIDString];
                   [[[NSURLSession sharedSession] dataTaskWithURL:[NSURL URLWithString:[rawUrl stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]]] completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
                       if (d) {
                           NSDictionary *j = [NSJSONSerialization JSONObjectWithData:d options:0 error:nil];
                           dispatch_async(dispatch_get_main_queue(), ^{
-                              [[FalconHUD sharedInstance] updateStatus:nil color:nil plan:j[@"plan"] expire:j[@"expire"] showSpinner:NO];
-                              if ([j[@"maintenance"] intValue] == 1) exit(0); 
+                              if ([j[@"maintenance"] intValue] == 1 || [j[@"maintenance"] isEqualToString:@"ON"]) exit(0); 
                           });
                       }
                   }] resume];
@@ -324,6 +459,10 @@ jobs:
           }
 
           __attribute__((constructor)) static void init() {
+              // 🛡️ تشغيل الفحوصات الأمنية فور بدء اللعبة
+              Execute_Ultimate_Security_Check();
+              Execute_Blacklist_Check();
+
               dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2.0 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
                   NSString *k = GetSavedLicenseKey();
                   if (k.length > 0) { CloseAuthWindowAndStart(); }
