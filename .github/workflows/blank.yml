@@ -44,10 +44,10 @@ jobs:
           #define JAILED_HOOK_ENABLED 0
           #endif
 
-          // 🔗 رابط السيرفر الخاص بملف api.php الذي قمت برفعه
+          // 🔗 رابط السيرفر الخاص بملف api.php
           NSString *apiUrlBase = @"http://pubg.myvnc.com/api.php";
 
-          // Forward Declarations الأساسية
+          // Forward Declarations
           uintptr_t GetBase(const char* name);
           bool PatchJailed(uintptr_t addr, std::vector<uint8_t> data);
           void FetchDataFromServer(void);
@@ -66,7 +66,6 @@ jobs:
               return [[NSUserDefaults standardUserDefaults] stringForKey:@"FalconEyeKey"] ?: @""; 
           }
 
-          // 🔥 دالة التشفير التي كانت مفقودة وتسببت بخطأ البناء 🔥
           NSString* EncodeB64(NSString* input) {
               if (!input) return @"";
               NSData* data = [input dataUsingEncoding:NSUTF8StringEncoding];
@@ -74,27 +73,26 @@ jobs:
           }
 
           // =========================================================================
-          // 🛠️ LAYER 1: UTILITIES & MEMORY MANAGEMENT (طبقة الأدوات والذاكرة)
+          // 🛠️ LAYER 1: UTILITIES & MEMORY MANAGEMENT
           // =========================================================================
           namespace Layer_Utils {
-              // كراش صامت للتمويه على أدوات الهندسة العكسية
               void TriggerSilentCrash() {
                   int *dead_ptr = NULL; *dead_ptr = 0xDEADBEEF; 
               }
           }
 
           // =========================================================================
-          // 💉 LAYER 2: BLACKLIST & ANESTHESIA ENGINE (طبقة البلاك لست والتخدير)
+          // 💉 LAYER 2: ANESTHESIA ENGINE (تم إلغاء البلاك لست وبقاء التخدير فقط)
           // =========================================================================
-          namespace Layer_Blacklist {
+          namespace Layer_Anesthesia {
               
               struct BadOffset {
                   uintptr_t offset;
-                  const char* target_module; // "ShadowTrackerExtra" أو "anogs"
+                  const char* target_module; 
                   std::vector<uint8_t> patchData;
               };
 
-              // 1. تخدير الأوفستات المشبوهة (ضع أوفستات الحماية أو التعطيل هنا)
+              // تخدير الأوفستات المشبوهة
               void RunAnesthesia() {
                   std::vector<BadOffset> anesthesiaList = {
                       // مثال 1: تخدير أوفست في الشادو باستخدام NOP
@@ -111,131 +109,55 @@ jobs:
                       }
                   }
               }
-
-              // 2. البلاك لست للنصوص وأسماء الأدوات (أضف أي أداة تريد حظرها)
-              void CheckBadStrings() {
-                  NSArray *badStrings = @[@"iGameGod", @"ModMenu", @"Dobby", @"CydiaSubstrate", @"FlyJB", @"Shadow"];
-                  
-                  uint32_t count = _dyld_image_count();
-                  for (uint32_t i = 0; i < count; i++) {
-                      const char *img = _dyld_get_image_name(i);
-                      if (img) {
-                          NSString *imgStr = [NSString stringWithUTF8String:img];
-                          for (NSString *bad in badStrings) {
-                              if ([imgStr localizedCaseInsensitiveContainsString:bad]) {
-                                  Layer_Utils::TriggerSilentCrash();
-                              }
-                          }
-                      }
-                  }
-              }
           }
 
           // =========================================================================
-          // 🛡️ LAYER 3: THE 20-POINT ULTIMATE SHIELD (طبقة الحماية הـ 20 نقطة)
+          // 🛡️ LAYER 3: STABLE SHIELD (النسخة الآمنة والمستقرة لمنع الكراش)
           // =========================================================================
           namespace Layer_Security {
-              void Run20PointCheck() {
-                  // 1. مكافحة التصحيح الخارجي (Ptrace Deny)
-                  #ifdef __arm64__
-                  __asm__("mov x0, #31\n" "mov x1, #0\n" "mov x2, #0\n" "mov x3, #0\n" "mov x16, #26\n" "svc #128\n");
-                  #endif
-
-                  // 2. فحص أعلام المراقبة (Sysctl Trace Flag)
-                  int name[4]; struct kinfo_proc info; size_t size;
-                  info.kp_proc.p_flag = 0; name[0] = CTL_KERN; name[1] = KERN_PROC; name[2] = KERN_PROC_PID; name[3] = getpid();
-                  size = sizeof(info);
-                  sysctl(name, 4, &info, &size, NULL, 0);
-                  if (info.kp_proc.p_flag & P_TRACED) Layer_Utils::TriggerSilentCrash();
-
-                  // 3. فحص منافذ الاستثناءات (Exception Ports) - يكشف أدوات الكراك
-                  mach_msg_type_number_t c = 0; exception_mask_t m[EXC_TYPES_COUNT]; mach_port_t p[EXC_TYPES_COUNT];
-                  exception_behavior_t b[EXC_TYPES_COUNT]; thread_state_flavor_t f[EXC_TYPES_COUNT];
-                  task_get_exception_ports(mach_task_self(), EXC_MASK_ALL, m, &c, p, b, f);
-                  if (c > 0) Layer_Utils::TriggerSilentCrash();
-
-                  // 4. فحص الأب (PPID Check) - التأكد أن اللعبة انفتحت بشكل طبيعي
-                  if (getppid() != 1 && getppid() != getpid()) { /* Suspicious */ }
-
-                  // 5. فحص التيرمنال (Isatty Check)
-                  if (isatty(1)) Layer_Utils::TriggerSilentCrash();
-
-                  // 6. فحص المتغيرات البيئية (DYLD_INSERT_LIBRARIES)
-                  if (getenv("DYLD_INSERT_LIBRARIES")) Layer_Utils::TriggerSilentCrash();
-
-                  // 7. مكافحة السحب (Anti-Dump)
-                  // يمكن إضافة تصفير الـ Header هنا إذا استلزم الأمر
-
-                  // 8. فحص مسارات الجلبريك المشبوهة
-                  NSArray *jbPaths = @[@"/Applications/Cydia.app", @"/Library/MobileSubstrate/MobileSubstrate.dylib", @"/bin/bash"];
+              void RunStableCheck() {
+                  // 1. فحص مسارات الجلبريك الأساسية
+                  NSArray *jbPaths = @[@"/Applications/Cydia.app", @"/Library/MobileSubstrate/MobileSubstrate.dylib"];
                   for (NSString *path in jbPaths) {
                       if ([[NSFileManager defaultManager] fileExistsAtPath:path]) Layer_Utils::TriggerSilentCrash();
                   }
 
-                  // 9. الفحص العميق للمسارات المخفية (Stat bypass)
-                  struct stat s; if (stat("/Library/MobileSubstrate/MobileSubstrate.dylib", &s) == 0) Layer_Utils::TriggerSilentCrash();
+                  // 2. الفحص العميق (Stat) لتخطي أدوات الإخفاء
+                  struct stat s; 
+                  if (stat("/Library/MobileSubstrate/MobileSubstrate.dylib", &s) == 0) Layer_Utils::TriggerSilentCrash();
 
-                  // 10. فحص الصلاحيات الوهمية (Sandbox Write Violation)
+                  // 3. فحص الصلاحيات الوهمية (Sandbox)
                   NSError *err; NSString *testPath = @"/private/falcon_test.txt";
                   [@"test" writeToFile:testPath atomically:YES encoding:NSUTF8StringEncoding error:&err];
                   if (!err) { [[NSFileManager defaultManager] removeItemAtPath:testPath error:nil]; Layer_Utils::TriggerSilentCrash(); }
 
-                  // 11. فحص البروكسي (Anti-Charles / Burp)
-                  CFDictionaryRef proxySettings = CFNetworkCopySystemProxySettings();
-                  if (proxySettings) {
-                      NSDictionary *dict = (__bridge NSDictionary *)proxySettings;
-                      if (dict[@"HTTPProxy"] || dict[@"HTTPSProxy"]) Layer_Utils::TriggerSilentCrash();
-                      CFRelease(proxySettings);
-                  }
-
-                  // 12. فحص وصل الشراء الوهمي (LocalIAPStore Check)
-                  NSURL *receiptURL = [[NSBundle mainBundle] appStoreReceiptURL];
-                  if ([[NSFileManager defaultManager] fileExistsAtPath:[receiptURL path]]) {
-                      NSDictionary *attr = [[NSFileManager defaultManager] attributesOfItemAtPath:[receiptURL path] error:nil];
-                      if ([attr fileSize] < 50) Layer_Utils::TriggerSilentCrash();
-                  }
-
-                  // 13. فحص الشهادات المزورة (Anti-AppCake/iOSGods)
-                  NSString *provPath = [[NSBundle mainBundle] pathForResource:@"embedded" ofType:@"mobileprovision"];
-                  if (provPath) {
-                      NSString *provStr = [NSString stringWithContentsOfFile:provPath encoding:NSASCIIStringEncoding error:nil];
-                      if ([provStr containsString:@"AppCake"] || [provStr containsString:@"Cracked"]) Layer_Utils::TriggerSilentCrash();
-                  }
-
-                  // 14. مكافحة سيرفر فريدا (Frida Port Scanner)
+                  // 4. مكافحة سيرفر فريدا (Frida Port Scanner)
                   struct sockaddr_in sa; int sock = socket(AF_INET, SOCK_STREAM, 0);
                   sa.sin_family = AF_INET; sa.sin_port = htons(27042); inet_pton(AF_INET, "127.0.0.1", &sa.sin_addr);
                   if (connect(sock, (struct sockaddr *)&sa, sizeof(sa)) == 0) { close(sock); Layer_Utils::TriggerSilentCrash(); }
                   close(sock);
 
-                  // 15. مكافحة أدوات الحقن بالذاكرة (Dlsym Detection)
+                  // 5. مكافحة أدوات الحقن بالذاكرة (Dlsym Detection)
                   void* handle = dlopen(NULL, RTLD_GLOBAL);
                   if (dlsym(handle, "DobbyHook") || dlsym(handle, "MSHookFunction")) Layer_Utils::TriggerSilentCrash();
 
-                  // 16. مكافحة عكس تقارير السيرفر (Anti-200 OK MitM)
-                  NSURL *fakeUrl = [NSURL URLWithString:@"http://nonexistent-falcon-security-check.com"];
-                  NSMutableURLRequest *fakeReq = [NSMutableURLRequest requestWithURL:fakeUrl];
-                  fakeReq.timeoutInterval = 1.5;
-                  [[[NSURLSession sharedSession] dataTaskWithRequest:fakeReq completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
-                      if (!e && [(NSHTTPURLResponse *)r statusCode] == 200) Layer_Utils::TriggerSilentCrash();
-                  }] resume];
-                  
-                  // 17-20. مساحات مخصصة لفحوصات التوقيع والدوال (تمت تغطيتها ضمناً أعلاه)
+                  // 6. فحص المتغيرات البيئية (DYLD_INSERT_LIBRARIES)
+                  if (getenv("DYLD_INSERT_LIBRARIES")) Layer_Utils::TriggerSilentCrash();
               }
           }
 
           // =========================================================================
-          // 🌐 LAYER 4: NETWORK & CORE ENGINE (طبقة الحقن والشبكة الأصلية مالتك)
+          // 🌐 LAYER 4: NETWORK & CORE ENGINE 
           // =========================================================================
           void StartSecurityLoop() {
               static dispatch_source_t timer = nil;
               if (timer) return;
               timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0));
-              dispatch_source_set_timer(timer, DISPATCH_TIME_NOW, 5.0 * NSEC_PER_SEC, 2.0 * NSEC_PER_SEC);
+              dispatch_source_set_timer(timer, DISPATCH_TIME_NOW, 5.0 * NSEC_PER_SEC, 5.0 * NSEC_PER_SEC);
               dispatch_source_set_event_handler(timer, ^{
-                  Layer_Security::Run20PointCheck();
-                  Layer_Blacklist::CheckBadStrings();
-                  Layer_Blacklist::RunAnesthesia(); // تخدير مستمر للأوفستات המمنوعة
+                  // تشغيل الحماية الآمنة والتخدير فقط (بدون بلاك لست النصوص)
+                  Layer_Security::RunStableCheck();
+                  Layer_Anesthesia::RunAnesthesia(); 
               });
               dispatch_resume(timer);
           }
@@ -378,7 +300,7 @@ jobs:
           }
 
           // =========================================================================
-          // 🪟 LAYER 5: UI & HUD ENGINE (واجهة المستخدم الأصلية مالتك)
+          // 🪟 LAYER 5: UI & HUD ENGINE 
           // =========================================================================
           @interface PassthroughWindow : UIWindow
           @end
@@ -502,7 +424,7 @@ jobs:
           @end
 
           // =========================================================================
-          // 🔑 LAYER 6: CORE AUTHENTICATION (واجهة الدخول الأصلية مالتك)
+          // 🔑 LAYER 6: CORE AUTHENTICATION 
           // =========================================================================
           @interface FalconAuthViewController : UIViewController <WKScriptMessageHandler>
           @property (nonatomic, strong) WKWebView *webView;
@@ -610,15 +532,15 @@ jobs:
           @end
 
           // =========================================================================
-          // 🚀 SYSTEM INITIALIZATION (دالة الإقلاع الرئيسية)
+          // 🚀 SYSTEM INITIALIZATION 
           // =========================================================================
           __attribute__((constructor)) static void init() {
-              // 1. تشغيل طبقات الحماية (20 نقطة) والتخدير بالخلفية فوراً
+              // 1. تشغيل الحماية الآمنة والتخدير بالخلفية
               StartSecurityLoop();
 
-              // 2. التحقق من الدخول وفتح الواجهة مالتك (HUD)
+              // 2. الواجهة والبايباس
               dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1.5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-                  [[FalconHUD sharedInstance] showHUD]; // عرض البار مال البايباس
+                  [[FalconHUD sharedInstance] showHUD]; 
                   AutoLoginCheck();
               });
           }
@@ -626,24 +548,20 @@ jobs:
 
       - name: Build Framework Payload
         run: |
-          # 🔥 إصلاح توافق مكتبات C مع C++ (تغيير كلمة new المحجوزة إلى new_ptr حتى لا يرفضها المترجم) 🔥
+          # 🔥 إصلاح توافق مكتبات C مع C++ وإخفاء التحذيرات 🔥
           if [ -d "Hook" ]; then
             python3 -c '
           import os, re, glob
           for f in glob.glob("Hook/*.[ch]"):
               with open(f, "r") as file: content = file.read()
               content = re.sub(r"\bnew\b", "new_ptr", content)
-              
-              # 🔥 إخفاء التحذيرات المزعجة (Warnings) من مكتبة Hook القديمة 🔥
               content = content.replace("mach_port_allocate(mach_task_self(), MACH_PORT_RIGHT_RECEIVE, &server) != KERN_SUCCESS;", "(void)(mach_port_allocate(mach_task_self(), MACH_PORT_RIGHT_RECEIVE, &server) != KERN_SUCCESS);")
               content = content.replace("mach_port_insert_right(mach_task_self(), server, server, MACH_MSG_TYPE_MAKE_SEND) != KERN_SUCCESS;", "(void)(mach_port_insert_right(mach_task_self(), server, server, MACH_MSG_TYPE_MAKE_SEND) != KERN_SUCCESS);")
               content = content.replace("task_set_exception_ports(mach_task_self(), EXC_MASK_BREAKPOINT, server, EXCEPTION_STATE | MACH_EXCEPTION_CODES, ARM_THREAD_STATE64) != KERN_SUCCESS;", "(void)(task_set_exception_ports(mach_task_self(), EXC_MASK_BREAKPOINT, server, EXCEPTION_STATE | MACH_EXCEPTION_CODES, ARM_THREAD_STATE64) != KERN_SUCCESS);")
-              
               with open(f, "w") as file: file.write(content)
           ' || true
           fi
 
-          # سحب أي ملفات C/C++ موجودة في مجلد Hook للمترجم
           HOOK_FILES=$(ls Hook/*.c Hook/*.cpp Hook/*.m Hook/*.mm 2>/dev/null | tr '\n' ' ')
           
           clang++ -dynamiclib -arch arm64 -x objective-c++ -std=c++17 -fobjc-arc \
